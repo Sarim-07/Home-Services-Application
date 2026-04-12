@@ -1,0 +1,109 @@
+//  REGISTER SCREEN
+    // ═══════════════════════════════════════════════════════════════════════
+ 
+    JPanel buildRegisterScreen() {
+        JPanel root = new JPanel(new GridBagLayout());
+        root.setBackground(BG);
+ 
+        JPanel form = card(36);
+        form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
+        form.setPreferredSize(new Dimension(500, 600));
+ 
+        JLabel title = label("Create Account", 24, true, TEXT_DARK); title.setAlignmentX(LEFT_ALIGNMENT);
+        JLabel sub = label("Join the Home Services platform", 13, false, TEXT_MUTED); sub.setAlignmentX(LEFT_ALIGNMENT);
+ 
+        JTextField nameF = styledField("Full name", 20);
+        JTextField emailF = styledField("Email address", 20);
+        JPasswordField passF = styledPasswordField(20);
+        JTextField phoneF = styledField("Phone number (e.g. 0300-1234567)", 20);
+ 
+        ButtonGroup roleGroup = new ButtonGroup();
+        JRadioButton custRB = new JRadioButton("Customer"); custRB.setSelected(true);
+        JRadioButton provRB = new JRadioButton("Service Provider");
+        custRB.setBackground(CARD_BG); provRB.setBackground(CARD_BG);
+        custRB.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        provRB.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        roleGroup.add(custRB); roleGroup.add(provRB);
+ 
+        JTextField extraF = styledField("Home address", 20);
+        JLabel extraLbl = label("Home Address", 13, true, TEXT_DARK);
+ 
+        provRB.addActionListener(e -> { extraLbl.setText("Specialty (e.g. Plumbing, Electrical)"); extraF.setText(""); });
+        custRB.addActionListener(e -> { extraLbl.setText("Home Address"); extraF.setText(""); });
+ 
+        for (JTextField f : new JTextField[]{nameF, emailF, passF, phoneF, extraF})
+            f.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+        for (JComponent c : new JComponent[]{nameF, emailF, passF, phoneF, extraF})
+            c.setAlignmentX(LEFT_ALIGNMENT);
+ 
+        JPanel roleRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        roleRow.setBackground(CARD_BG); roleRow.setAlignmentX(LEFT_ALIGNMENT);
+        roleRow.add(label("Role:", 13, true, TEXT_DARK)); roleRow.add(custRB); roleRow.add(provRB);
+ 
+        JButton regBtn = primaryButton("Create Account");
+        regBtn.setAlignmentX(LEFT_ALIGNMENT);
+        regBtn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
+ 
+        JButton backBtn = new JButton("← Back to Login");
+        backBtn.setBorderPainted(false); backBtn.setContentAreaFilled(false);
+        backBtn.setForeground(PRIMARY); backBtn.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        backBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        backBtn.setAlignmentX(LEFT_ALIGNMENT);
+ 
+        form.add(title); form.add(Box.createVerticalStrut(4)); form.add(sub);
+        form.add(Box.createVerticalStrut(24));
+        form.add(label("Full Name", 13, true, TEXT_DARK)); form.add(Box.createVerticalStrut(5)); form.add(nameF);
+        form.add(Box.createVerticalStrut(12));
+        form.add(label("Email", 13, true, TEXT_DARK)); form.add(Box.createVerticalStrut(5)); form.add(emailF);
+        form.add(Box.createVerticalStrut(12));
+        form.add(label("Password", 13, true, TEXT_DARK)); form.add(Box.createVerticalStrut(5)); form.add(passF);
+        form.add(Box.createVerticalStrut(12));
+        form.add(label("Phone", 13, true, TEXT_DARK)); form.add(Box.createVerticalStrut(5)); form.add(phoneF);
+        form.add(Box.createVerticalStrut(12));
+        form.add(roleRow);
+        form.add(Box.createVerticalStrut(12));
+        form.add(extraLbl); form.add(Box.createVerticalStrut(5)); form.add(extraF);
+        form.add(Box.createVerticalStrut(20));
+        form.add(regBtn); form.add(Box.createVerticalStrut(12)); form.add(backBtn);
+ 
+        regBtn.addActionListener(e -> {
+            String name = nameF.getText().trim();
+            String email = emailF.getText().trim();
+            String pass = new String(passF.getPassword()).trim();
+            String phone = phoneF.getText().trim();
+            String extra = extraF.getText().trim();
+ 
+            if (name.isEmpty() || email.isEmpty() || pass.isEmpty() || phone.isEmpty() || extra.isEmpty()) {
+                showMessage("Please fill all fields.", "Missing Info", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            if (!email.contains("@")) {
+                showMessage("Please enter a valid email address.", "Invalid Email", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            if (db.emailExists(email)) {
+                showMessage("This email is already registered.", "Email Taken", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+ 
+            String id = db.generateId();
+            if (custRB.isSelected()) {
+                Customer c = new Customer(id, name, email, pass, phone, extra);
+                db.addCustomer(c);
+                currentUser = c;
+                mainPanel.add(buildCustomerDashboard(c), "CUSTOMER_DASH");
+                cardLayout.show(mainPanel, "CUSTOMER_DASH");
+            } else {
+                ServiceProvider p = new ServiceProvider(id, name, email, pass, phone, extra);
+                db.addProvider(p);
+                currentUser = p;
+                mainPanel.add(buildProviderDashboard(p), "PROVIDER_DASH");
+                cardLayout.show(mainPanel, "PROVIDER_DASH");
+            }
+        });
+ 
+        backBtn.addActionListener(e -> cardLayout.show(mainPanel, "LOGIN"));
+        root.add(form);
+        return root;
+    }
+ 
