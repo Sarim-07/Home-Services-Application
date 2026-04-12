@@ -1,0 +1,219 @@
+package homeservicessystem;
+ 
+import java.io.*;
+import java.time.LocalDateTime;
+import java.util.List;
+ 
+/**
+ * DataPersistence — saves and loads all app data to CSV files.
+ *
+ * Files created in the same folder as the .jar:
+ *   customers.csv
+ *   providers.csv
+ *   bookings.csv
+ *
+ * Call DataPersistence.saveAll(db) to save.
+ * Call DataPersistence.loadAll(db) on startup to restore.
+ */
+public class DataPersistence {
+ 
+    // ── File names ──────────────────────────────────────────────────────────
+    private static final String CUSTOMERS_FILE = "customers.csv";
+    private static final String PROVIDERS_FILE  = "providers.csv";
+    private static final String BOOKINGS_FILE   = "bookings.csv";
+ 
+    // ── Delimiter (pipe avoids conflicts with commas in addresses) ──────────
+    private static final String SEP = "|";
+    private static final String SEP_REGEX = "\\|";
+ 
+    // ═══════════════════════════════════════════════════════════════════════
+    //  SAVE ALL
+    // ═══════════════════════════════════════════════════════════════════════
+ 
+    public static void saveAll(DataStore db) {
+        saveCustomers(db.getCustomers());
+        saveProviders(db.getProviders());
+        saveBookings(db.getAllBookings());
+    }
+ 
+    // ── Save Customers ───────────────────────────────────────────────────────
+    private static void saveCustomers(List<Customer> customers) {
+        try (PrintWriter pw = new PrintWriter(new FileWriter(CUSTOMERS_FILE))) {
+            // Header row
+            pw.println("userId|name|email|password|phone|address");
+            for (Customer c : customers) {
+                pw.println(String.join(SEP,
+                    c.getUserId(),
+                    c.getName(),
+                    c.getEmail(),
+                    c.getPassword(),
+                    c.getPhone(),
+                    c.getAddress()
+                ));
+            }
+        } catch (IOException e) {
+            System.err.println("[DataPersistence] Failed to save customers: " + e.getMessage());
+        }
+    }
+ 
+    // ── Save Providers ───────────────────────────────────────────────────────
+    private static void saveProviders(List<ServiceProvider> providers) {
+        try (PrintWriter pw = new PrintWriter(new FileWriter(PROVIDERS_FILE))) {
+            // Header row
+            pw.println("userId|name|email|password|phone|specialty|rating|totalRatings|isAvailable");
+            for (ServiceProvider p : providers) {
+                pw.println(String.join(SEP,
+                    p.getUserId(),
+                    p.getName(),
+                    p.getEmail(),
+                    p.getPassword(),
+                    p.getPhone(),
+                    p.getSpecialty(),
+                    String.valueOf(p.getRating()),
+                    String.valueOf(p.getTotalRatings()),
+                    String.valueOf(p.isAvailable())
+                ));
+            }
+        } catch (IOException e) {
+            System.err.println("[DataPersistence] Failed to save providers: " + e.getMessage());
+        }
+    }
+ 
+    // ── Save Bookings ────────────────────────────────────────────────────────
+    private static void saveBookings(List<Booking> bookings) {
+        try (PrintWriter pw = new PrintWriter(new FileWriter(BOOKINGS_FILE))) {
+            // Header row
+            pw.println("bookingId|customerId|providerId|serviceId|dateTime|status|notes|rating|customerName|providerName|serviceName|totalPrice");
+            for (Booking b : bookings) {
+                pw.println(String.join(SEP,
+                    b.getBookingId(),
+                    b.getCustomerId(),
+                    b.getProviderId(),
+                    b.getServiceId(),
+                    b.getBookingDateTime().toString(),   // ISO format: 2026-04-12T14:30
+                    b.getStatus(),
+                    b.getNotes().replace(SEP, " "),      // strip any | in user-typed notes
+                    String.valueOf(b.getRating()),
+                    b.getCustomerName(),
+                    b.getProviderName(),
+                    b.getServiceName(),
+                    String.valueOf(b.getTotalPrice())
+                ));
+            }
+        } catch (IOException e) {
+            System.err.println("[DataPersistence] Failed to save bookings: " + e.getMessage());
+        }
+    }
+ 
+    // ═══════════════════════════════════════════════════════════════════════
+    //  LOAD ALL
+    // ═══════════════════════════════════════════════════════════════════════
+ 
+    /**
+     * Returns true if save files exist and were loaded successfully.
+     * Returns false if no save files found (first run → use sample data).
+     */
+    public static boolean loadAll(DataStore db) {
+        File cf = new File(CUSTOMERS_FILE);
+        File pf = new File(PROVIDERS_FILE);
+        File bf = new File(BOOKINGS_FILE);
+ 
+        // If none of the files exist → first run, let DataStore load sample data
+        if (!cf.exists() && !pf.exists() && !bf.exists()) {
+            return false;
+        }
+ 
+        loadCustomers(db, cf);
+        loadProviders(db, pf);
+        loadBookings(db, bf);
+        return true;
+    }
+ 
+    // ── Load Customers ───────────────────────────────────────────────────────
+    private static void loadCustomers(DataStore db, File file) {
+        if (!file.exists()) return;
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line = br.readLine(); // skip header
+            while ((line = br.readLine()) != null) {
+                if (line.trim().isEmpty()) continue;
+                String[] f = line.split(SEP_REGEX, -1);
+                if (f.length < 6) continue;
+                Customer c = new Customer(f[0], f[1], f[2], f[3], f[4], f[5]);
+                db.getCustomers().add(c);
+            }
+        } catch (IOException e) {
+            System.err.println("[DataPersistence] Failed to load customers: " + e.getMessage());
+        }
+    }
+ 
+    // ── Load Providers ───────────────────────────────────────────────────────
+    private static void loadProviders(DataStore db, File file) {
+        if (!file.exists()) return;
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line = br.readLine(); // skip header
+            while ((line = br.readLine()) != null) {
+                if (line.trim().isEmpty()) continue;
+                String[] f = line.split(SEP_REGEX, -1);
+                if (f.length < 9) continue;
+                ServiceProvider p = new ServiceProvider(f[0], f[1], f[2], f[3], f[4], f[5]);
+                // Restore rating stats via reflection-free helper
+                int totalRatings = Integer.parseInt(f[7]);
+                double savedRating = Double.parseDouble(f[6]);
+                p.restoreRating(savedRating, totalRatings);
+                p.setAvailable(Boolean.parseBoolean(f[8]));
+                db.getProviders().add(p);
+            }
+        } catch (IOException e) {
+            System.err.println("[DataPersistence] Failed to load providers: " + e.getMessage());
+        }
+    }
+ 
+    // ── Load Bookings ────────────────────────────────────────────────────────
+    private static void loadBookings(DataStore db, File file) {
+        if (!file.exists()) return;
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line = br.readLine(); // skip header
+            while ((line = br.readLine()) != null) {
+                if (line.trim().isEmpty()) continue;
+                String[] f = line.split(SEP_REGEX, -1);
+                if (f.length < 12) continue;
+ 
+                LocalDateTime dt = LocalDateTime.parse(f[4]);
+                Booking b = new Booking(
+                    f[0],  // bookingId
+                    f[1],  // customerId
+                    f[2],  // providerId
+                    f[3],  // serviceId
+                    dt,
+                    f[6],  // notes
+                    f[8],  // customerName
+                    f[9],  // providerName
+                    f[10], // serviceName
+                    Double.parseDouble(f[11]) // totalPrice
+                );
+                b.setStatus(f[5]);
+                b.setRating(Integer.parseInt(f[7]));
+                db.getAllBookings().add(b);
+ 
+                // Re-link booking to the correct customer and provider objects
+                for (Customer c : db.getCustomers()) {
+                    if (c.getUserId().equals(f[1])) { c.addBooking(b); break; }
+                }
+                for (ServiceProvider p : db.getProviders()) {
+                    if (p.getUserId().equals(f[2])) { p.addBooking(b); break; }
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("[DataPersistence] Failed to load bookings: " + e.getMessage());
+        }
+    }
+ 
+    // ═══════════════════════════════════════════════════════════════════════
+    //  UTILITY — check save file paths
+    // ═══════════════════════════════════════════════════════════════════════
+ 
+    public static String getSaveLocation() {
+        return new File(CUSTOMERS_FILE).getAbsolutePath()
+            .replace("customers.csv", "");
+    }
+}
