@@ -1,0 +1,97 @@
+//  HELPERS
+    // ═══════════════════════════════════════════════════════════════════════
+ 
+    static JButton primaryButton(String text) {
+        JButton btn = new JButton(text);
+        btn.setBackground(PRIMARY);
+        btn.setForeground(Color.WHITE);
+        btn.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        btn.setBorder(new EmptyBorder(10, 24, 10, 24));
+        btn.setFocusPainted(false);
+        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btn.addMouseListener(new MouseAdapter() {
+            public void mouseEntered(MouseEvent e) { btn.setBackground(PRIMARY_DARK); }
+            public void mouseExited(MouseEvent e)  { btn.setBackground(PRIMARY); }
+        });
+        return btn;
+    }
+ 
+    static JButton outlineButton(String text, Color color) {
+        JButton btn = new JButton(text);
+        btn.setBackground(Color.WHITE);
+        btn.setForeground(color);
+        btn.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        btn.setBorder(BorderFactory.createCompoundBorder(
+            new LineBorder(color, 1, true),
+            new EmptyBorder(7, 16, 7, 16)));
+        btn.setFocusPainted(false);
+        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        return btn;
+    }
+ 
+    static JPanel card(int padding) {
+        JPanel p = new JPanel();
+        p.setBackground(CARD_BG);
+        p.setBorder(BorderFactory.createCompoundBorder(
+            new LineBorder(BORDER, 1, true),
+            new EmptyBorder(padding, padding, padding, padding)));
+        return p;
+    }
+ 
+    static JLabel label(String text, int size, boolean bold, Color color) {
+        JLabel l = new JLabel(text);
+        l.setFont(new Font("Segoe UI", bold ? Font.BOLD : Font.PLAIN, size));
+        l.setForeground(color);
+        return l;
+    }
+ 
+    static JTextField styledField(String placeholder, int cols) {
+        JTextField f = new JTextField(cols) {
+            public void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                if (getText().isEmpty() && !isFocusOwner()) {
+                    g.setColor(new Color(148, 163, 184));
+                    g.setFont(getFont().deriveFont(Font.ITALIC));
+                    g.drawString(placeholder, 10, 20);
+                }
+            }
+        };
+        f.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        f.setBorder(BorderFactory.createCompoundBorder(
+            new LineBorder(BORDER, 1, true),
+            new EmptyBorder(8, 10, 8, 10)));
+        f.setBackground(Color.WHITE);
+        return f;
+    }
+ 
+    static JPasswordField styledPasswordField(int cols) {
+        JPasswordField f = new JPasswordField(cols);
+        f.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        f.setBorder(BorderFactory.createCompoundBorder(
+            new LineBorder(BORDER, 1, true),
+            new EmptyBorder(8, 10, 8, 10)));
+        return f;
+    }
+ 
+    static JLabel statusBadge(String status) {
+        Color bg, fg;
+        switch (status) {
+            case "Accepted":  bg = new Color(220,252,231); fg = new Color(22,101,52);   break;
+            case "Pending":   bg = new Color(254,243,199); fg = new Color(146,64,14);   break;
+            case "Rejected":  bg = new Color(254,226,226); fg = new Color(153,27,27);   break;
+            case "Completed": bg = new Color(219,234,254); fg = new Color(30,64,175);   break;
+            default:          bg = new Color(241,245,249); fg = new Color(71,85,105);   break;
+        }
+        JLabel l = new JLabel(" " + status + " ");
+        l.setOpaque(true);
+        l.setBackground(bg);
+        l.setForeground(fg);
+        l.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        l.setBorder(new EmptyBorder(3, 8, 3, 8));
+        return l;
+    }
+ 
+    void showMessage(String msg, String title, int type) {
+        JOptionPane.showMessageDialog(this, msg, title, type);
+    }
+ 
