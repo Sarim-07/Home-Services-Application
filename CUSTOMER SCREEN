@@ -1,0 +1,398 @@
+//  CUSTOMER DASHBOARD
+    // ═══════════════════════════════════════════════════════════════════════
+ 
+    JPanel buildCustomerDashboard(Customer customer) {
+        JPanel root = new JPanel(new BorderLayout());
+ 
+        // Sidebar
+        JPanel sidebar = buildSidebar(customer.getName(), "Customer",
+            new String[]{"🏠  Overview", "🔍  Book Service", "📋  My Bookings", "👤  My Profile"});
+ 
+        // Content area
+        CardLayout cl = new CardLayout();
+        JPanel content = new JPanel(cl);
+        content.setBackground(BG);
+ 
+        content.add(buildCustomerOverview(customer), "OVERVIEW");
+        content.add(buildBookServiceScreen(customer, cl, content), "BOOK");
+        content.add(buildCustomerBookings(customer), "BOOKINGS");
+        content.add(buildProfile(customer), "PROFILE");
+ 
+        cl.show(content, "OVERVIEW");
+ 
+        JButton[] navBtns = (JButton[]) sidebar.getClientProperty("navBtns");
+        String[] screens = {"OVERVIEW", "BOOK", "BOOKINGS", "PROFILE"};
+        for (int i = 0; i < navBtns.length - 1; i++) {
+            final String screen = screens[i];
+            final int idx = i;
+            navBtns[i].addActionListener(e -> {
+                // Refresh bookings panel
+                if (screen.equals("BOOKINGS")) {
+                    content.remove(content.getComponent(2));
+                    content.add(buildCustomerBookings(customer), "BOOKINGS", 2);
+                }
+                if (screen.equals("OVERVIEW")) {
+                    content.remove(content.getComponent(0));
+                    content.add(buildCustomerOverview(customer), "OVERVIEW", 0);
+                }
+                cl.show(content, screen);
+                highlightNav(navBtns, idx);
+            });
+        }
+        navBtns[navBtns.length - 1].addActionListener(e -> {
+            currentUser = null;
+            cardLayout.show(mainPanel, "LOGIN");
+        });
+ 
+        root.add(sidebar, BorderLayout.WEST);
+        root.add(content, BorderLayout.CENTER);
+        return root;
+    }
+ 
+    JPanel buildCustomerOverview(Customer customer) {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(BG);
+        panel.setBorder(new EmptyBorder(30, 30, 30, 30));
+ 
+        JLabel greeting = label("Good day, " + customer.getName() + "! 👋", 24, true, TEXT_DARK);
+        JLabel sub = label("Here's what's happening with your services", 14, false, TEXT_MUTED);
+        greeting.setAlignmentX(LEFT_ALIGNMENT);
+        sub.setAlignmentX(LEFT_ALIGNMENT);
+ 
+        // Stats row
+        JPanel statsRow = new JPanel(new GridLayout(1, 3, 16, 0));
+        statsRow.setBackground(BG); statsRow.setAlignmentX(LEFT_ALIGNMENT);
+        statsRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 120));
+ 
+        int total = customer.getBookingHistory().size();
+        int active = customer.getActiveBookings().size();
+        int completed = (int) customer.getBookingHistory().stream().filter(b -> b.getStatus().equals("Completed")).count();
+ 
+        statsRow.add(statCard("Total Bookings", String.valueOf(total), new Color(239, 246, 255), PRIMARY));
+        statsRow.add(statCard("Active Bookings", String.valueOf(active), new Color(240, 253, 244), SUCCESS));
+        statsRow.add(statCard("Completed", String.valueOf(completed), new Color(250, 245, 255), new Color(126, 34, 206)));
+ 
+        // Recent bookings
+        JLabel recTitle = label("Recent Bookings", 17, true, TEXT_DARK);
+        recTitle.setAlignmentX(LEFT_ALIGNMENT);
+ 
+        JPanel bookList = new JPanel();
+        bookList.setLayout(new BoxLayout(bookList, BoxLayout.Y_AXIS));
+        bookList.setBackground(BG); bookList.setAlignmentX(LEFT_ALIGNMENT);
+ 
+        List<Booking> history = customer.getBookingHistory();
+        if (history.isEmpty()) {
+            JLabel empty = label("No bookings yet. Go to 'Book Service' to get started!", 14, false, TEXT_MUTED);
+            empty.setAlignmentX(LEFT_ALIGNMENT);
+            bookList.add(empty);
+        } else {
+            for (int i = Math.max(0, history.size() - 3); i < history.size(); i++) {
+                bookList.add(bookingRow(history.get(i)));
+                bookList.add(Box.createVerticalStrut(8));
+            }
+        }
+ 
+        panel.add(greeting); panel.add(Box.createVerticalStrut(4)); panel.add(sub);
+        panel.add(Box.createVerticalStrut(24));
+        panel.add(statsRow);
+        panel.add(Box.createVerticalStrut(28));
+        panel.add(recTitle);
+        panel.add(Box.createVerticalStrut(12));
+        panel.add(bookList);
+        return panel;
+    }
+ 
+    JPanel buildBookServiceScreen(Customer customer, CardLayout parentCL, JPanel parentPanel) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(BG);
+        panel.setBorder(new EmptyBorder(24, 28, 24, 28));
+ 
+        JLabel title = label("Book a Service", 22, true, TEXT_DARK);
+ 
+        // Category filter
+        String[] cats = {"All", "Plumbing", "Electrical", "Cleaning", "AC Repair"};
+        JComboBox<String> catBox = new JComboBox<>(cats);
+        catBox.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        catBox.setPreferredSize(new Dimension(180, 36));
+ 
+        JTextField searchField = styledField("Search services...", 20);
+ 
+        JPanel topBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        topBar.setBackground(BG);
+        topBar.add(title);
+        topBar.add(Box.createHorizontalStrut(20));
+        topBar.add(label("Category:", 13, false, TEXT_MUTED));
+        topBar.add(catBox);
+        topBar.add(label("Search:", 13, false, TEXT_MUTED));
+        topBar.add(searchField);
+ 
+        // Services grid
+        JPanel grid = new JPanel(new GridLayout(0, 2, 16, 16));
+        grid.setBackground(BG);
+        grid.setBorder(new EmptyBorder(16, 0, 0, 0));
+ 
+        Runnable refreshGrid = () -> {
+            grid.removeAll();
+            String cat = (String) catBox.getSelectedItem();
+            String search = searchField.getText().toLowerCase().trim();
+            List<Service> services = db.getServicesByCategory(cat);
+            for (Service s : services) {
+                if (!search.isEmpty() && !s.getName().toLowerCase().contains(search)
+                    && !s.getDescription().toLowerCase().contains(search)) continue;
+                ServiceProvider prov = db.getProviderById(s.getProviderId());
+                grid.add(serviceCard(s, prov, customer, parentCL, parentPanel));
+            }
+            grid.revalidate(); grid.repaint();
+        };
+ 
+        catBox.addActionListener(e -> refreshGrid.run());
+        searchField.addKeyListener(new KeyAdapter() {
+            public void keyReleased(KeyEvent e) { refreshGrid.run(); }
+        });
+ 
+        refreshGrid.run();
+ 
+        JScrollPane scroll = new JScrollPane(grid);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
+        scroll.setBackground(BG);
+ 
+        panel.add(topBar, BorderLayout.NORTH);
+        panel.add(scroll, BorderLayout.CENTER);
+        return panel;
+    }
+ 
+    JPanel serviceCard(Service s, ServiceProvider prov, Customer customer, CardLayout cl, JPanel parentPanel) {
+        JPanel p = card(20);
+        p.setLayout(new BorderLayout(0, 10));
+        p.setPreferredSize(new Dimension(0, 200));
+ 
+        JPanel top = new JPanel(new BorderLayout());
+        top.setBackground(CARD_BG);
+ 
+        JLabel catBadge = new JLabel(" " + s.getCategory() + " ");
+        catBadge.setOpaque(true);
+        catBadge.setBackground(new Color(219, 234, 254));
+        catBadge.setForeground(new Color(30, 64, 175));
+        catBadge.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        catBadge.setBorder(new EmptyBorder(3, 8, 3, 8));
+ 
+        JLabel price = label(s.getFormattedPrice(), 18, true, PRIMARY);
+        top.add(catBadge, BorderLayout.WEST);
+        top.add(price, BorderLayout.EAST);
+ 
+        JLabel name = label(s.getName(), 16, true, TEXT_DARK);
+        JLabel desc = label("<html><p style='width:200px'>" + s.getDescription() + "</p></html>", 13, false, TEXT_MUTED);
+ 
+        JPanel info = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        info.setBackground(CARD_BG);
+        info.add(label("⏱ " + s.getFormattedDuration(), 12, false, TEXT_MUTED));
+        if (prov != null) info.add(label("👤 " + prov.getName(), 12, false, TEXT_MUTED));
+        if (prov != null && prov.getTotalRatings() > 0)
+            info.add(label("★ " + String.format("%.1f", prov.getRating()), 12, false, new Color(180, 117, 23)));
+ 
+        JButton bookBtn = primaryButton("Book Now");
+        bookBtn.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        bookBtn.addActionListener(e -> showBookingDialog(s, prov, customer, cl, parentPanel));
+ 
+        p.add(top, BorderLayout.NORTH);
+        JPanel mid = new JPanel(); mid.setLayout(new BoxLayout(mid, BoxLayout.Y_AXIS));
+        mid.setBackground(CARD_BG);
+        mid.add(name); mid.add(Box.createVerticalStrut(4)); mid.add(desc); mid.add(Box.createVerticalStrut(6)); mid.add(info);
+        p.add(mid, BorderLayout.CENTER);
+        p.add(bookBtn, BorderLayout.SOUTH);
+        return p;
+    }
+ 
+    void showBookingDialog(Service s, ServiceProvider prov, Customer customer, CardLayout cl, JPanel parentPanel) {
+        JDialog dialog = new JDialog(this, "Confirm Booking", true);
+        dialog.setSize(460, 440);
+        dialog.setLocationRelativeTo(this);
+        dialog.setLayout(new BorderLayout());
+ 
+        JPanel body = new JPanel(); body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
+        body.setBorder(new EmptyBorder(24, 28, 24, 28));
+        body.setBackground(CARD_BG);
+ 
+        body.add(label("Book: " + s.getName(), 18, true, TEXT_DARK));
+        body.add(Box.createVerticalStrut(4));
+        body.add(label("Provider: " + (prov != null ? prov.getName() : "N/A"), 13, false, TEXT_MUTED));
+        body.add(label("Price: " + s.getFormattedPrice(), 13, false, TEXT_MUTED));
+        body.add(label("Duration: " + s.getFormattedDuration(), 13, false, TEXT_MUTED));
+        body.add(Box.createVerticalStrut(20));
+ 
+        // Date/time pickers
+        body.add(label("Select Date:", 13, true, TEXT_DARK));
+        body.add(Box.createVerticalStrut(6));
+        String[] months = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
+        Integer[] days = new Integer[28]; for(int i=0;i<28;i++) days[i]=i+1;
+        Integer[] years = {2025, 2026, 2027};
+        Integer[] hours = {8,9,10,11,12,13,14,15,16,17,18};
+        Integer[] mins = {0, 15, 30, 45};
+ 
+        JComboBox<String> monthBox = new JComboBox<>(months);
+        JComboBox<Integer> dayBox = new JComboBox<>(days);
+        JComboBox<Integer> yearBox = new JComboBox<>(years);
+        JComboBox<Integer> hourBox = new JComboBox<>(hours);
+        JComboBox<Integer> minBox = new JComboBox<>(mins);
+        yearBox.setSelectedItem(2026);
+ 
+        JPanel dateRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        dateRow.setBackground(CARD_BG);
+        dateRow.add(dayBox); dateRow.add(monthBox); dateRow.add(yearBox);
+        dateRow.add(label("  Time:", 13, true, TEXT_DARK));
+        dateRow.add(hourBox); dateRow.add(label(":", 13, false, TEXT_DARK)); dateRow.add(minBox);
+        body.add(dateRow);
+        body.add(Box.createVerticalStrut(16));
+ 
+        body.add(label("Special Notes (optional):", 13, true, TEXT_DARK));
+        body.add(Box.createVerticalStrut(6));
+        JTextArea notesArea = new JTextArea(3, 20);
+        notesArea.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        notesArea.setBorder(BorderFactory.createCompoundBorder(
+            new LineBorder(BORDER), new EmptyBorder(6, 8, 6, 8)));
+        notesArea.setLineWrap(true);
+        body.add(new JScrollPane(notesArea));
+        body.add(Box.createVerticalStrut(20));
+ 
+        JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        btnRow.setBackground(CARD_BG);
+        JButton cancel = outlineButton("Cancel", TEXT_MUTED);
+        JButton confirm = primaryButton("Confirm Booking");
+ 
+        confirm.addActionListener(e -> {
+            int day = (int) dayBox.getSelectedItem();
+            int month = monthBox.getSelectedIndex() + 1;
+            int year = (int) yearBox.getSelectedItem();
+            int hour = (int) hourBox.getSelectedItem();
+            int min = (int) minBox.getSelectedItem();
+            LocalDateTime dt = LocalDateTime.of(year, month, day, hour, min);
+ 
+            String bookId = "BK" + db.generateId();
+            Booking booking = new Booking(bookId, customer.getUserId(),
+                prov != null ? prov.getUserId() : "", s.getServiceId(), dt,
+                notesArea.getText().trim(),
+                customer.getName(), prov != null ? prov.getName() : "", s.getName(), s.getPrice());
+ 
+            customer.addBooking(booking);
+            if (prov != null) prov.addBooking(booking);
+            db.addBooking(booking);
+ 
+            dialog.dispose();
+            showMessage("✅ Booking confirmed!\nBooking ID: " + bookId +
+                "\nService: " + s.getName() +
+                "\nDate: " + booking.getFormattedDateTime() +
+                "\nStatus: Pending (awaiting provider)", "Booking Successful", JOptionPane.INFORMATION_MESSAGE);
+        });
+ 
+        cancel.addActionListener(e -> dialog.dispose());
+        btnRow.add(cancel); btnRow.add(confirm);
+        body.add(btnRow);
+ 
+        dialog.add(body, BorderLayout.CENTER);
+        dialog.setVisible(true);
+    }
+ 
+    JPanel buildCustomerBookings(Customer customer) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(BG);
+        panel.setBorder(new EmptyBorder(24, 28, 24, 28));
+ 
+        JLabel title = label("My Bookings", 22, true, TEXT_DARK);
+ 
+        // Table
+        String[] cols = {"Booking ID", "Service", "Provider", "Date & Time", "Price", "Status", "Action"};
+        DefaultTableModel model = new DefaultTableModel(cols, 0) {
+            public boolean isCellEditable(int r, int c) { return c == 6; }
+        };
+ 
+        List<Booking> bookings = customer.getBookingHistory();
+        for (Booking b : bookings) {
+            model.addRow(new Object[]{
+                b.getBookingId(), b.getServiceName(), b.getProviderName(),
+                b.getFormattedDateTime(), b.getFormattedPrice(), b.getStatus(), "Rate"
+            });
+        }
+ 
+        JTable table = new JTable(model);
+        table.setRowHeight(38);
+        table.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        table.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
+        table.getTableHeader().setBackground(new Color(241, 245, 249));
+        table.setGridColor(BORDER);
+        table.setSelectionBackground(new Color(239, 246, 255));
+        table.setShowVerticalLines(false);
+ 
+        // Status renderer
+        table.getColumnModel().getColumn(5).setCellRenderer((tbl, val, sel, foc, row, col) -> {
+            return statusBadge(val.toString());
+        });
+ 
+        // Rate button
+        table.getColumnModel().getColumn(6).setCellRenderer(new DefaultTableCellRenderer() {
+            public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
+                Booking b = bookings.get(r);
+                if (b.getStatus().equals("Accepted") || b.getStatus().equals("Completed")) {
+                    JButton btn = outlineButton("Rate ★", WARNING);
+                    btn.setPreferredSize(new Dimension(80, 28));
+                    return btn;
+                }
+                return new JLabel("-");
+            }
+        });
+        table.addMouseListener(new MouseAdapter() {
+            public void mouseClicked(MouseEvent e) {
+                int row = table.rowAtPoint(e.getPoint());
+                int col = table.columnAtPoint(e.getPoint());
+                if (col == 6 && row >= 0) {
+                    Booking b = bookings.get(row);
+                    if (b.getStatus().equals("Accepted") || b.getStatus().equals("Completed")) {
+                        showRatingDialog(b);
+                    }
+                }
+            }
+        });
+ 
+        // Cancel booking button
+        JButton cancelBooking = outlineButton("Cancel Selected Booking", DANGER);
+        cancelBooking.addActionListener(e -> {
+            int row = table.getSelectedRow();
+            if (row < 0) { showMessage("Please select a booking first.", "No Selection", JOptionPane.WARNING_MESSAGE); return; }
+            Booking b = bookings.get(row);
+            if (!b.getStatus().equals("Pending")) {
+                showMessage("Only Pending bookings can be cancelled.", "Cannot Cancel", JOptionPane.WARNING_MESSAGE); return;
+            }
+            b.setStatus("Cancelled");
+            model.setValueAt("Cancelled", row, 5);
+        });
+ 
+        JPanel header = new JPanel(new BorderLayout());
+        header.setBackground(BG); header.setBorder(new EmptyBorder(0, 0, 12, 0));
+        header.add(title, BorderLayout.WEST);
+        header.add(cancelBooking, BorderLayout.EAST);
+ 
+        JScrollPane scroll = new JScrollPane(table);
+        scroll.setBorder(new LineBorder(BORDER, 1, true));
+ 
+        panel.add(header, BorderLayout.NORTH);
+        panel.add(scroll, BorderLayout.CENTER);
+        return panel;
+    }
+ 
+    void showRatingDialog(Booking b) {
+        String[] options = {"⭐ 1", "⭐⭐ 2", "⭐⭐⭐ 3", "⭐⭐⭐⭐ 4", "⭐⭐⭐⭐⭐ 5"};
+        int choice = JOptionPane.showOptionDialog(this,
+            "Rate your experience with " + b.getProviderName() + " for " + b.getServiceName(),
+            "Rate Service", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE,
+            null, options, options[4]);
+        if (choice >= 0) {
+            int stars = choice + 1;
+            b.setRating(stars);
+            b.setStatus("Completed");
+            ServiceProvider prov = db.getProviderById(b.getProviderId());
+            if (prov != null) prov.addRating(stars);
+            showMessage("Thank you! You rated " + stars + " star(s).", "Rating Submitted", JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+ 
