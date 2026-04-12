@@ -1,0 +1,217 @@
+ //  PROVIDER DASHBOARD
+    // ═══════════════════════════════════════════════════════════════════════
+ 
+    JPanel buildProviderDashboard(ServiceProvider provider) {
+        JPanel root = new JPanel(new BorderLayout());
+ 
+        JPanel sidebar = buildSidebar(provider.getName(), "Service Provider",
+            new String[]{"🏠  Overview", "📋  Pending Requests", "📊  All Bookings", "👤  My Profile"});
+ 
+        CardLayout cl = new CardLayout();
+        JPanel content = new JPanel(cl);
+        content.setBackground(BG);
+ 
+        content.add(buildProviderOverview(provider), "OVERVIEW");
+        content.add(buildProviderRequests(provider, cl, content), "REQUESTS");
+        content.add(buildProviderAllBookings(provider), "ALL");
+        content.add(buildProfile(provider), "PROFILE");
+ 
+        cl.show(content, "OVERVIEW");
+ 
+        JButton[] navBtns = (JButton[]) sidebar.getClientProperty("navBtns");
+        String[] screens = {"OVERVIEW", "REQUESTS", "ALL", "PROFILE"};
+        for (int i = 0; i < navBtns.length - 1; i++) {
+            final String screen = screens[i];
+            final int idx = i;
+            navBtns[i].addActionListener(e -> {
+                if (screen.equals("REQUESTS")) {
+                    content.remove(content.getComponent(1));
+                    content.add(buildProviderRequests(provider, cl, content), "REQUESTS", 1);
+                }
+                if (screen.equals("OVERVIEW")) {
+                    content.remove(content.getComponent(0));
+                    content.add(buildProviderOverview(provider), "OVERVIEW", 0);
+                }
+                if (screen.equals("ALL")) {
+                    content.remove(content.getComponent(2));
+                    content.add(buildProviderAllBookings(provider), "ALL", 2);
+                }
+                cl.show(content, screen);
+                highlightNav(navBtns, idx);
+            });
+        }
+        navBtns[navBtns.length - 1].addActionListener(e -> {
+            currentUser = null;
+            cardLayout.show(mainPanel, "LOGIN");
+        });
+ 
+        root.add(sidebar, BorderLayout.WEST);
+        root.add(content, BorderLayout.CENTER);
+        return root;
+    }
+ 
+    JPanel buildProviderOverview(ServiceProvider provider) {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(BG);
+        panel.setBorder(new EmptyBorder(30, 30, 30, 30));
+ 
+        JLabel greeting = label("Welcome, " + provider.getName() + " 🔧", 24, true, TEXT_DARK);
+        JLabel sub = label("Specialty: " + provider.getSpecialty() + "  |  " + provider.getFormattedRating(), 14, false, TEXT_MUTED);
+        greeting.setAlignmentX(LEFT_ALIGNMENT);
+        sub.setAlignmentX(LEFT_ALIGNMENT);
+ 
+        JPanel statsRow = new JPanel(new GridLayout(1, 3, 16, 0));
+        statsRow.setBackground(BG); statsRow.setAlignmentX(LEFT_ALIGNMENT);
+        statsRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 120));
+ 
+        int total = provider.getAssignedBookings().size();
+        int pending = provider.getPendingBookings().size();
+        int accepted = (int) provider.getAssignedBookings().stream().filter(b -> b.getStatus().equals("Accepted")).count();
+ 
+        statsRow.add(statCard("Total Jobs", String.valueOf(total), new Color(239, 246, 255), PRIMARY));
+        statsRow.add(statCard("Pending", String.valueOf(pending), new Color(255, 251, 235), WARNING));
+        statsRow.add(statCard("Accepted", String.valueOf(accepted), new Color(240, 253, 244), SUCCESS));
+ 
+        JLabel pendTitle = label("Pending Requests", 17, true, TEXT_DARK);
+        pendTitle.setAlignmentX(LEFT_ALIGNMENT);
+ 
+        JPanel pendList = new JPanel();
+        pendList.setLayout(new BoxLayout(pendList, BoxLayout.Y_AXIS));
+        pendList.setBackground(BG); pendList.setAlignmentX(LEFT_ALIGNMENT);
+ 
+        List<Booking> pending2 = provider.getPendingBookings();
+        if (pending2.isEmpty()) {
+            pendList.add(label("No pending requests right now.", 14, false, TEXT_MUTED));
+        } else {
+            for (Booking b : pending2) {
+                pendList.add(bookingRow(b));
+                pendList.add(Box.createVerticalStrut(8));
+            }
+        }
+ 
+        panel.add(greeting); panel.add(Box.createVerticalStrut(4)); panel.add(sub);
+        panel.add(Box.createVerticalStrut(24)); panel.add(statsRow);
+        panel.add(Box.createVerticalStrut(28)); panel.add(pendTitle);
+        panel.add(Box.createVerticalStrut(12)); panel.add(pendList);
+        return panel;
+    }
+ 
+    JPanel buildProviderRequests(ServiceProvider provider, CardLayout parentCL, JPanel parentPanel) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(BG);
+        panel.setBorder(new EmptyBorder(24, 28, 24, 28));
+ 
+        JLabel title = label("Pending Requests", 22, true, TEXT_DARK);
+ 
+        JPanel list = new JPanel();
+        list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
+        list.setBackground(BG);
+ 
+        List<Booking> pending = provider.getPendingBookings();
+        if (pending.isEmpty()) {
+            list.add(Box.createVerticalStrut(40));
+            JLabel empty = label("✅  No pending requests at the moment.", 16, false, TEXT_MUTED);
+            empty.setAlignmentX(CENTER_ALIGNMENT);
+            list.add(empty);
+        }
+ 
+        for (Booking b : pending) {
+            JPanel row = card(16);
+            row.setLayout(new BorderLayout(12, 0));
+            row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 110));
+            row.setAlignmentX(LEFT_ALIGNMENT);
+ 
+            JPanel info = new JPanel(); info.setLayout(new BoxLayout(info, BoxLayout.Y_AXIS));
+            info.setBackground(CARD_BG);
+            info.add(label(b.getServiceName(), 15, true, TEXT_DARK));
+            info.add(Box.createVerticalStrut(3));
+            info.add(label("Customer: " + b.getCustomerName(), 13, false, TEXT_MUTED));
+            info.add(label("Scheduled: " + b.getFormattedDateTime(), 13, false, TEXT_MUTED));
+            info.add(label("Price: " + b.getFormattedPrice(), 13, false, TEXT_MUTED));
+            if (!b.getNotes().isEmpty())
+                info.add(label("Notes: " + b.getNotes(), 12, false, new Color(180,117,23)));
+ 
+            JPanel actions = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 0));
+            actions.setBackground(CARD_BG);
+            JButton accept = primaryButton("✓ Accept");
+            JButton reject = outlineButton("✗ Reject", DANGER);
+            accept.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            reject.setFont(new Font("Segoe UI", Font.BOLD, 12));
+ 
+            accept.addActionListener(e -> {
+                b.setStatus("Accepted");
+                showMessage("Booking accepted! Customer has been notified.", "Accepted", JOptionPane.INFORMATION_MESSAGE);
+                // Rebuild
+                parentPanel.remove(parentPanel.getComponent(1));
+                parentPanel.add(buildProviderRequests(provider, parentCL, parentPanel), "REQUESTS", 1);
+                parentCL.show(parentPanel, "REQUESTS");
+            });
+            reject.addActionListener(e -> {
+                b.setStatus("Rejected");
+                parentPanel.remove(parentPanel.getComponent(1));
+                parentPanel.add(buildProviderRequests(provider, parentCL, parentPanel), "REQUESTS", 1);
+                parentCL.show(parentPanel, "REQUESTS");
+            });
+ 
+            actions.add(accept); actions.add(reject);
+            row.add(info, BorderLayout.CENTER);
+            row.add(actions, BorderLayout.EAST);
+            list.add(row); list.add(Box.createVerticalStrut(10));
+        }
+ 
+        JScrollPane scroll = new JScrollPane(list);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+ 
+        panel.add(title, BorderLayout.NORTH);
+        panel.add(scroll, BorderLayout.CENTER);
+        return panel;
+    }
+ 
+    JPanel buildProviderAllBookings(ServiceProvider provider) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(BG);
+        panel.setBorder(new EmptyBorder(24, 28, 24, 28));
+ 
+        JLabel title = label("All Bookings", 22, true, TEXT_DARK);
+ 
+        String[] cols = {"Booking ID", "Service", "Customer", "Scheduled", "Price", "Status"};
+        DefaultTableModel model = new DefaultTableModel(cols, 0) {
+            public boolean isCellEditable(int r, int c) { return false; }
+        };
+        for (Booking b : provider.getAssignedBookings()) {
+            model.addRow(new Object[]{
+                b.getBookingId(), b.getServiceName(), b.getCustomerName(),
+                b.getFormattedDateTime(), b.getFormattedPrice(), b.getStatus()
+            });
+        }
+ 
+        JTable table = new JTable(model);
+        table.setRowHeight(38);
+        table.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        table.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
+        table.getTableHeader().setBackground(new Color(241, 245, 249));
+        table.setGridColor(BORDER);
+        table.setShowVerticalLines(false);
+        table.getColumnModel().getColumn(5).setCellRenderer((t, v, s, f, r, c) -> statusBadge(v.toString()));
+ 
+        // Mark complete button
+        JButton markDone = primaryButton("Mark Selected as Completed");
+        markDone.addActionListener(e -> {
+            int row = table.getSelectedRow();
+            if (row < 0) { showMessage("Select a booking first.", "No Selection", JOptionPane.WARNING_MESSAGE); return; }
+            String status = (String) model.getValueAt(row, 5);
+            if (!status.equals("Accepted")) { showMessage("Only Accepted bookings can be marked complete.", "Error", JOptionPane.WARNING_MESSAGE); return; }
+            provider.getAssignedBookings().get(row).setStatus("Completed");
+            model.setValueAt("Completed", row, 5);
+        });
+ 
+        JPanel header = new JPanel(new BorderLayout());
+        header.setBackground(BG); header.setBorder(new EmptyBorder(0, 0, 12, 0));
+        header.add(title, BorderLayout.WEST); header.add(markDone, BorderLayout.EAST);
+ 
+        panel.add(header, BorderLayout.NORTH);
+        panel.add(new JScrollPane(table), BorderLayout.CENTER);
+        return panel;
+    }
+ 
