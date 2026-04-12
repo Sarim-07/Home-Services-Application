@@ -1,0 +1,30 @@
+//  SMALL HELPERS
+    // ═══════════════════════════════════════════════════════════════════════
+ 
+    JPanel statCard(String lbl, String val, Color bg, Color textColor) {
+        JPanel p = new JPanel();
+        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
+        p.setBackground(bg);
+        p.setBorder(new EmptyBorder(16, 20, 16, 20));
+ 
+        JLabel valLbl = label(val, 32, true, textColor); valLbl.setAlignmentX(LEFT_ALIGNMENT);
+        JLabel lblLbl = label(lbl, 13, false, TEXT_MUTED); lblLbl.setAlignmentX(LEFT_ALIGNMENT);
+        p.add(valLbl); p.add(Box.createVerticalStrut(4)); p.add(lblLbl);
+        return p;
+    }
+ 
+    JPanel bookingRow(Booking b) {
+        JPanel row = card(14);
+        row.setLayout(new BorderLayout(10, 0));
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 72));
+        row.setAlignmentX(LEFT_ALIGNMENT);
+ 
+        JPanel info = new JPanel(); info.setLayout(new BoxLayout(info, BoxLayout.Y_AXIS));
+        info.setBackground(CARD_BG);
+        info.add(label(b.getServiceName(), 14, true, TEXT_DARK));
+        info.add(label(b.getFormattedDateTime() + "  ·  " + b.getFormattedPrice(), 12, false, TEXT_MUTED));
+ 
+        row.add(info, BorderLayout.CENTER);
+        row.add(statusBadge(b.getStatus()), BorderLayout.EAST);
+        return row;
+    }
