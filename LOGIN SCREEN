@@ -1,0 +1,132 @@
+//  LOGIN SCREEN
+    // ═══════════════════════════════════════════════════════════════════════
+ 
+    JPanel buildLoginScreen() {
+        JPanel root = new JPanel(new BorderLayout());
+        root.setBackground(BG);
+ 
+        // Left panel - branding
+        JPanel left = new JPanel();
+        left.setBackground(new Color(15, 23, 42));
+        left.setPreferredSize(new Dimension(420, 0));
+        left.setLayout(new BoxLayout(left, BoxLayout.Y_AXIS));
+        left.setBorder(new EmptyBorder(80, 50, 80, 50));
+ 
+        JLabel logo = label("🏠", 64, false, Color.WHITE);
+        logo.setAlignmentX(Component.CENTER_ALIGNMENT);
+        logo.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 64));
+ 
+        JLabel title = label("Home Services", 28, true, Color.WHITE);
+        title.setAlignmentX(Component.CENTER_ALIGNMENT);
+        JLabel subtitle = label("Management System", 20, false, new Color(148, 163, 184));
+        subtitle.setAlignmentX(Component.CENTER_ALIGNMENT);
+ 
+        JLabel desc = label("<html><center>Your one-stop solution for booking<br>home services — fast, easy, reliable.</center></html>",
+            14, false, new Color(100, 116, 139));
+        desc.setAlignmentX(Component.CENTER_ALIGNMENT);
+ 
+        left.add(Box.createVerticalGlue());
+        left.add(logo);
+        left.add(Box.createVerticalStrut(20));
+        left.add(title);
+        left.add(Box.createVerticalStrut(4));
+        left.add(subtitle);
+        left.add(Box.createVerticalStrut(30));
+        left.add(desc);
+        left.add(Box.createVerticalGlue());
+ 
+        // Stats
+        JPanel stats = new JPanel(new FlowLayout(FlowLayout.CENTER, 30, 0));
+        stats.setBackground(new Color(15, 23, 42));
+        String[][] st = {{"8+", "Services"}, {"4", "Providers"}, {"2", "Customers"}};
+        for (String[] s : st) {
+            JPanel box = new JPanel(); box.setLayout(new BoxLayout(box, BoxLayout.Y_AXIS));
+            box.setBackground(new Color(30, 41, 59));
+            box.setBorder(new EmptyBorder(12, 20, 12, 20));
+            JLabel num = label(s[0], 22, true, Color.WHITE); num.setAlignmentX(CENTER_ALIGNMENT);
+            JLabel lbl = label(s[1], 11, false, new Color(148,163,184)); lbl.setAlignmentX(CENTER_ALIGNMENT);
+            box.add(num); box.add(lbl);
+            stats.add(box);
+        }
+        left.add(stats);
+        left.add(Box.createVerticalGlue());
+ 
+        // Right panel - login form
+        JPanel right = new JPanel(new GridBagLayout());
+        right.setBackground(BG);
+ 
+        JPanel form = card(40);
+        form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
+        form.setPreferredSize(new Dimension(400, 480));
+ 
+        JLabel formTitle = label("Welcome Back", 26, true, TEXT_DARK);
+        formTitle.setAlignmentX(LEFT_ALIGNMENT);
+        JLabel formSub = label("Sign in to your account", 14, false, TEXT_MUTED);
+        formSub.setAlignmentX(LEFT_ALIGNMENT);
+ 
+        JTextField emailField = styledField("Email address", 20);
+        JPasswordField passField = styledPasswordField(20);
+        emailField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+        passField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+        emailField.setAlignmentX(LEFT_ALIGNMENT);
+        passField.setAlignmentX(LEFT_ALIGNMENT);
+ 
+        JButton loginBtn = primaryButton("Sign In");
+        loginBtn.setAlignmentX(LEFT_ALIGNMENT);
+        loginBtn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
+ 
+        JLabel hint = label("<html><small>Demo: ahmed@gmail.com / 1234 (Customer)<br>usman@pro.com / 1234 (Provider)</small></html>",
+            11, false, TEXT_MUTED);
+        hint.setAlignmentX(LEFT_ALIGNMENT);
+ 
+        JLabel regLabel = label("Don't have an account? ", 13, false, TEXT_MUTED);
+        JButton regBtn = new JButton("Register");
+        regBtn.setBorderPainted(false); regBtn.setContentAreaFilled(false);
+        regBtn.setForeground(PRIMARY); regBtn.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        regBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+ 
+        JPanel regRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        regRow.setBackground(CARD_BG); regRow.setAlignmentX(LEFT_ALIGNMENT);
+        regRow.add(regLabel); regRow.add(regBtn);
+ 
+        form.add(formTitle); form.add(Box.createVerticalStrut(4)); form.add(formSub);
+        form.add(Box.createVerticalStrut(28));
+        form.add(label("Email Address", 13, true, TEXT_DARK)); form.add(Box.createVerticalStrut(6));
+        form.add(emailField); form.add(Box.createVerticalStrut(16));
+        form.add(label("Password", 13, true, TEXT_DARK)); form.add(Box.createVerticalStrut(6));
+        form.add(passField); form.add(Box.createVerticalStrut(24));
+        form.add(loginBtn); form.add(Box.createVerticalStrut(16));
+        form.add(hint); form.add(Box.createVerticalStrut(20));
+        form.add(regRow);
+ 
+        right.add(form);
+ 
+        loginBtn.addActionListener(e -> {
+            String email = emailField.getText().trim();
+            String pass = new String(passField.getPassword());
+            if (email.isEmpty() || pass.isEmpty()) {
+                showMessage("Please enter email and password.", "Missing Info", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            User user = db.login(email, pass);
+            if (user == null) {
+                showMessage("Incorrect email or password.", "Login Failed", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            currentUser = user;
+            if (user instanceof Customer) {
+                mainPanel.add(buildCustomerDashboard((Customer) user), "CUSTOMER_DASH");
+                cardLayout.show(mainPanel, "CUSTOMER_DASH");
+            } else {
+                mainPanel.add(buildProviderDashboard((ServiceProvider) user), "PROVIDER_DASH");
+                cardLayout.show(mainPanel, "PROVIDER_DASH");
+            }
+        });
+ 
+        regBtn.addActionListener(e -> cardLayout.show(mainPanel, "REGISTER"));
+ 
+        root.add(left, BorderLayout.WEST);
+        root.add(right, BorderLayout.CENTER);
+        return root;
+    }
+ 
