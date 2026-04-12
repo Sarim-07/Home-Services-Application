@@ -1,0 +1,87 @@
+//  PROFILE
+    // ═══════════════════════════════════════════════════════════════════════
+ 
+    JPanel buildProfile(User user) {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBackground(BG);
+ 
+        JPanel form = card(32);
+        form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
+        form.setPreferredSize(new Dimension(500, 420));
+ 
+        // Avatar
+        JPanel avatarArea = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        avatarArea.setBackground(CARD_BG);
+        String initials = user.getName().length() >= 2 ?
+            user.getName().substring(0, 1).toUpperCase() + user.getName().split(" ")[user.getName().split(" ").length - 1].substring(0, 1).toUpperCase()
+            : user.getName().substring(0, 1).toUpperCase();
+ 
+        JPanel avatar = new JPanel() {
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(PRIMARY);
+                g2.fillOval(0, 0, 80, 80);
+                g2.setColor(Color.WHITE);
+                g2.setFont(new Font("Segoe UI", Font.BOLD, 28));
+                FontMetrics fm = g2.getFontMetrics();
+                int x = (80 - fm.stringWidth(initials)) / 2;
+                int y = (80 - fm.getHeight()) / 2 + fm.getAscent();
+                g2.drawString(initials, x, y);
+            }
+        };
+        avatar.setPreferredSize(new Dimension(80, 80));
+        avatar.setOpaque(false);
+        avatarArea.add(avatar);
+ 
+        JLabel nameLabel = label(user.getName(), 20, true, TEXT_DARK);
+        nameLabel.setAlignmentX(CENTER_ALIGNMENT);
+        JLabel roleLabel = label(user.getUserType(), 13, false, TEXT_MUTED);
+        roleLabel.setAlignmentX(CENTER_ALIGNMENT);
+ 
+        JLabel profileTitle = label("Edit Profile", 17, true, TEXT_DARK);
+        profileTitle.setAlignmentX(LEFT_ALIGNMENT);
+ 
+        JTextField nameF = styledField(user.getName(), 20); nameF.setText(user.getName());
+        JTextField phoneF = styledField(user.getPhone(), 20); phoneF.setText(user.getPhone());
+        JPasswordField passF = styledPasswordField(20);
+ 
+        for (JTextField f : new JTextField[]{nameF, phoneF, passF})
+            f.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+        for (JComponent c : new JComponent[]{nameF, phoneF, passF})
+            c.setAlignmentX(LEFT_ALIGNMENT);
+ 
+        JButton saveBtn = primaryButton("Save Changes");
+        saveBtn.setAlignmentX(LEFT_ALIGNMENT);
+        saveBtn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
+ 
+        saveBtn.addActionListener(e -> {
+            if (!nameF.getText().trim().isEmpty()) user.setName(nameF.getText().trim());
+            if (!phoneF.getText().trim().isEmpty()) user.setPhone(phoneF.getText().trim());
+            String pass = new String(passF.getPassword()).trim();
+            if (!pass.isEmpty()) user.setPassword(pass);
+            showMessage("Profile updated successfully!", "Saved", JOptionPane.INFORMATION_MESSAGE);
+        });
+ 
+        form.add(avatarArea);
+        form.add(nameLabel); form.add(roleLabel);
+        form.add(Box.createVerticalStrut(20));
+        form.add(new JSeparator()); form.add(Box.createVerticalStrut(16));
+        form.add(profileTitle); form.add(Box.createVerticalStrut(14));
+        form.add(label("Name", 13, true, TEXT_DARK)); form.add(Box.createVerticalStrut(5)); form.add(nameF);
+        form.add(Box.createVerticalStrut(12));
+        form.add(label("Email (read-only)", 13, true, TEXT_MUTED));
+        JLabel emailLbl = label(user.getEmail(), 13, false, TEXT_MUTED); emailLbl.setAlignmentX(LEFT_ALIGNMENT);
+        form.add(Box.createVerticalStrut(3)); form.add(emailLbl);
+        form.add(Box.createVerticalStrut(12));
+        form.add(label("Phone", 13, true, TEXT_DARK)); form.add(Box.createVerticalStrut(5)); form.add(phoneF);
+        form.add(Box.createVerticalStrut(12));
+        form.add(label("New Password (leave blank to keep)", 13, true, TEXT_DARK)); form.add(Box.createVerticalStrut(5)); form.add(passF);
+        form.add(Box.createVerticalStrut(20));
+        form.add(saveBtn);
+ 
+        panel.add(form);
+        return panel;
+    }
+ 
