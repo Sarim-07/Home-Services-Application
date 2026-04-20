@@ -1,0 +1,39 @@
+package homeservicessystem;
+
+/**
+ * Admin — third user role.
+ * Extends User with full system access: manage customers, providers,
+ * view all bookings, and see revenue/analytics.
+ *
+ * OOP: demonstrates Inheritance + Polymorphism (getUserType overridden)
+ */
+public class Admin extends User {
+
+    private boolean superAdmin;
+
+    public Admin(String userId, String name, String email,
+                 String password, String phone, boolean superAdmin) {
+        super(userId, name, email, password, phone);
+        this.superAdmin = superAdmin;
+    }
+
+    @Override
+    public String getUserType() { return "Admin"; }
+
+    public boolean isSuperAdmin() { return superAdmin; }
+
+    /** Suspend a provider (marks them unavailable) */
+    public void suspendProvider(ServiceProvider p) {
+        p.setAvailable(false);
+    }
+
+    /** Reinstate a suspended provider */
+    public void reinstateProvider(ServiceProvider p) {
+        p.setAvailable(true);
+    }
+
+    /** Force-cancel any booking regardless of status */
+    public void forceCancel(Booking b) {
+        b.setStatus("Cancelled");
+    }
+}
