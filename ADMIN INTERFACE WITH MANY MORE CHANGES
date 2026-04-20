@@ -1,0 +1,879 @@
+package homeservicessystem;
+
+import javax.swing.*;
+import javax.swing.border.*;
+import javax.swing.table.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.awt.geom.*;
+import java.util.*;
+import java.util.List;
+
+/**
+ * AdminDashboard — full admin control panel.
+ *
+ * Screens:
+ *   1. Overview   — KPI cards + bar chart (bookings by category) + donut chart (status split)
+ *   2. Customers  — full table, delete account
+ *   3. Providers  — table, suspend / reinstate, view rating
+ *   4. Bookings   — all bookings table, force-cancel any booking
+ *   5. Analytics  — revenue bar chart per category + top-providers bar chart
+ *
+ * All charts are drawn with Java2D (Graphics2D) — no external library needed.
+ */
+public class AdminDashboard extends JFrame {
+
+    // ── Colours (reuse MainGUI palette) ─────────────────────────────────────
+    static final Color PRIMARY      = new Color(37, 99, 235);
+    static final Color PRIMARY_DARK = new Color(29, 78, 216);
+    static final Color SUCCESS      = new Color(22, 163, 74);
+    static final Color DANGER       = new Color(220, 38, 38);
+    static final Color WARNING      = new Color(217, 119, 6);
+    static final Color PURPLE       = new Color(126, 34, 206);
+    static final Color BG           = new Color(248, 250, 252);
+    static final Color CARD_BG      = Color.WHITE;
+    static final Color BORDER       = new Color(226, 232, 240);
+    static final Color TEXT_DARK    = new Color(15, 23, 42);
+    static final Color TEXT_MUTED   = new Color(100, 116, 139);
+    static final Color SIDEBAR_BG   = new Color(15, 23, 42);
+    static final Color SIDEBAR_ACTIVE = new Color(37, 99, 235);
+
+    // Chart palette
+    static final Color[] CHART_COLORS = {
+        new Color(37, 99, 235),   // blue
+        new Color(22, 163, 74),   // green
+        new Color(217, 119, 6),   // amber
+        new Color(220, 38, 38),   // red
+        new Color(126, 34, 206),  // purple
+    };
+
+    private DataStore db = DataStore.getInstance();
+    private Admin admin;
+    private CardLayout contentCL;
+    private JPanel contentPanel;
+    private JButton[] navBtns;
+
+    public AdminDashboard(Admin admin) {
+        this.admin = admin;
+        setTitle("Admin Panel — Home Services Management System");
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setMinimumSize(new Dimension(1200, 740));
+        setLocationRelativeTo(null);
+        setBackground(BG);
+
+        JPanel root = new JPanel(new BorderLayout());
+        root.add(buildSidebar(), BorderLayout.WEST);
+
+        contentCL = new CardLayout();
+        contentPanel = new JPanel(contentCL);
+        contentPanel.setBackground(BG);
+
+        contentPanel.add(buildOverview(),   "OVERVIEW");
+        contentPanel.add(buildCustomers(),  "CUSTOMERS");
+        contentPanel.add(buildProviders(),  "PROVIDERS");
+        contentPanel.add(buildBookings(),   "BOOKINGS");
+        contentPanel.add(buildAnalytics(),  "ANALYTICS");
+
+        contentCL.show(contentPanel, "OVERVIEW");
+        root.add(contentPanel, BorderLayout.CENTER);
+        add(root);
+        setVisible(true);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  SIDEBAR
+    // ═══════════════════════════════════════════════════════════════════════
+
+    JPanel buildSidebar() {
+        JPanel sidebar = new JPanel();
+        sidebar.setLayout(new BoxLayout(sidebar, BoxLayout.Y_AXIS));
+        sidebar.setBackground(SIDEBAR_BG);
+        sidebar.setPreferredSize(new Dimension(230, 0));
+        sidebar.setBorder(new EmptyBorder(24, 0, 24, 0));
+
+        JLabel logo = new JLabel("  \uD83D\uDEE1  Admin Panel");
+        logo.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        logo.setForeground(Color.WHITE);
+        logo.setBorder(new EmptyBorder(0, 16, 0, 0));
+        logo.setAlignmentX(LEFT_ALIGNMENT);
+        sidebar.add(logo);
+        sidebar.add(Box.createVerticalStrut(6));
+
+        JLabel subLogo = new JLabel("  HomeServe System");
+        subLogo.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        subLogo.setForeground(new Color(100, 116, 139));
+        subLogo.setBorder(new EmptyBorder(0, 16, 0, 0));
+        subLogo.setAlignmentX(LEFT_ALIGNMENT);
+        sidebar.add(subLogo);
+        sidebar.add(Box.createVerticalStrut(20));
+
+        // Admin user box
+        JPanel userBox = new JPanel(new BorderLayout(10, 0));
+        userBox.setBackground(new Color(30, 41, 59));
+        userBox.setBorder(new EmptyBorder(10, 14, 10, 14));
+        userBox.setMaximumSize(new Dimension(Integer.MAX_VALUE, 56));
+        userBox.setAlignmentX(LEFT_ALIGNMENT);
+
+        JPanel circle = new JPanel() {
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(new Color(126, 34, 206));
+                g2.fillOval(0, 0, 34, 34);
+                g2.setColor(Color.WHITE);
+                g2.setFont(new Font("Segoe UI", Font.BOLD, 13));
+                String init = admin.getName().substring(0, 1).toUpperCase();
+                FontMetrics fm = g2.getFontMetrics();
+                g2.drawString(init, (34 - fm.stringWidth(init)) / 2, (34 - fm.getHeight()) / 2 + fm.getAscent());
+            }
+        };
+        circle.setPreferredSize(new Dimension(34, 34)); circle.setOpaque(false);
+
+        JPanel nameBox = new JPanel(); nameBox.setLayout(new BoxLayout(nameBox, BoxLayout.Y_AXIS));
+        nameBox.setBackground(new Color(30, 41, 59));
+        String dn = admin.getName().length() > 14 ? admin.getName().substring(0, 13) + "\u2026" : admin.getName();
+        nameBox.add(lbl(dn, 13, true, Color.WHITE));
+        nameBox.add(lbl(admin.isSuperAdmin() ? "Super Admin" : "Support Staff", 11, false, new Color(148, 163, 184)));
+        userBox.add(circle, BorderLayout.WEST);
+        userBox.add(nameBox, BorderLayout.CENTER);
+        sidebar.add(userBox);
+        sidebar.add(Box.createVerticalStrut(22));
+
+        JLabel navHdr = lbl("ADMIN NAVIGATION", 10, true, new Color(71, 85, 105));
+        navHdr.setBorder(new EmptyBorder(0, 20, 8, 0));
+        navHdr.setAlignmentX(LEFT_ALIGNMENT);
+        sidebar.add(navHdr);
+
+        String[] navItems = {"\uD83D\uDCCA  Overview", "\uD83D\uDC65  Customers",
+                             "\uD83D\uDD27  Providers", "\uD83D\uDCCB  All Bookings",
+                             "\uD83D\uDCC8  Analytics"};
+        String[] screens  = {"OVERVIEW", "CUSTOMERS", "PROVIDERS", "BOOKINGS", "ANALYTICS"};
+
+        navBtns = new JButton[navItems.length + 1];
+        for (int i = 0; i < navItems.length; i++) {
+            JButton btn = navBtn(navItems[i], i == 0);
+            navBtns[i] = btn;
+            sidebar.add(btn);
+            sidebar.add(Box.createVerticalStrut(2));
+            final String screen = screens[i];
+            final int idx = i;
+            btn.addActionListener(e -> {
+                refreshScreen(screen, idx);
+            });
+        }
+
+        sidebar.add(Box.createVerticalGlue());
+
+        // Logout
+        JButton logout = navBtn("\uD83D\uDEAA  Logout", false);
+        logout.setForeground(new Color(248, 113, 113));
+        navBtns[navItems.length] = logout;
+        logout.addActionListener(e -> {
+            dispose();
+            // Re-open login
+            new MainGUI();
+        });
+        sidebar.add(logout);
+        return sidebar;
+    }
+
+    void refreshScreen(String screen, int idx) {
+        contentPanel.removeAll();
+        contentPanel.add(buildOverview(),  "OVERVIEW");
+        contentPanel.add(buildCustomers(), "CUSTOMERS");
+        contentPanel.add(buildProviders(), "PROVIDERS");
+        contentPanel.add(buildBookings(),  "BOOKINGS");
+        contentPanel.add(buildAnalytics(), "ANALYTICS");
+        contentCL.show(contentPanel, screen);
+        for (int j = 0; j < navBtns.length - 1; j++) {
+            navBtns[j].setBackground(j == idx ? SIDEBAR_ACTIVE : SIDEBAR_BG);
+            navBtns[j].setForeground(j == idx ? Color.WHITE : new Color(148, 163, 184));
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  SCREEN 1 — OVERVIEW
+    // ═══════════════════════════════════════════════════════════════════════
+
+    JPanel buildOverview() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(BG);
+        panel.setBorder(new EmptyBorder(28, 28, 28, 28));
+
+        JLabel title = lbl("System Overview", 22, true, TEXT_DARK);
+        JLabel sub   = lbl("Real-time summary of the entire platform", 13, false, TEXT_MUTED);
+        title.setAlignmentX(LEFT_ALIGNMENT);
+        sub.setAlignmentX(LEFT_ALIGNMENT);
+
+        // ── KPI cards row ────────────────────────────────────────────────────
+        List<Booking> bookings = db.getAllBookings();
+        int totalBookings   = bookings.size();
+        int completed       = db.countByStatus("Completed");
+        int pending         = db.countByStatus("Pending");
+        double revenue      = db.getTotalRevenue();
+
+        JPanel kpiRow = new JPanel(new GridLayout(1, 5, 12, 0));
+        kpiRow.setBackground(BG); kpiRow.setAlignmentX(LEFT_ALIGNMENT);
+        kpiRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 110));
+
+        kpiRow.add(kpiCard("Total Bookings",  String.valueOf(totalBookings),     new Color(239,246,255), PRIMARY));
+        kpiRow.add(kpiCard("Customers",       String.valueOf(db.getCustomers().size()),  new Color(240,253,244), SUCCESS));
+        kpiRow.add(kpiCard("Providers",       String.valueOf(db.getProviders().size()),  new Color(250,245,255), PURPLE));
+        kpiRow.add(kpiCard("Completed Jobs",  String.valueOf(completed),          new Color(254,243,199), WARNING));
+        kpiRow.add(kpiCard("Revenue (PKR)",   String.format("%,.0f", revenue),    new Color(254,226,226), DANGER));
+
+        // ── Charts row ───────────────────────────────────────────────────────
+        JPanel chartsRow = new JPanel(new GridLayout(1, 2, 16, 0));
+        chartsRow.setBackground(BG); chartsRow.setAlignmentX(LEFT_ALIGNMENT);
+        chartsRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 320));
+
+        // Bar chart — bookings by category
+        Map<String, Integer> byCat = db.bookingsByCategory();
+        String[] catLabels = byCat.keySet().toArray(new String[0]);
+        int[]    catVals   = byCat.values().stream().mapToInt(Integer::intValue).toArray();
+        JPanel barChart = buildBarChart("Bookings by Category", catLabels, catVals, CHART_COLORS);
+        chartsRow.add(barChart);
+
+        // Donut chart — status split
+        String[] statusLabels = {"Completed", "Pending", "Accepted", "Rejected", "Cancelled"};
+        Color[]  statusColors = {SUCCESS, WARNING, PRIMARY, DANGER, TEXT_MUTED};
+        int[]    statusVals   = {
+            db.countByStatus("Completed"), db.countByStatus("Pending"),
+            db.countByStatus("Accepted"),  db.countByStatus("Rejected"),
+            db.countByStatus("Cancelled")
+        };
+        JPanel donut = buildDonutChart("Booking Status Split", statusLabels, statusVals, statusColors);
+        chartsRow.add(donut);
+
+        // ── Recent bookings mini-list ─────────────────────────────────────────
+        JLabel recTitle = lbl("Recent Bookings", 16, true, TEXT_DARK);
+        recTitle.setAlignmentX(LEFT_ALIGNMENT);
+
+        JPanel recList = new JPanel();
+        recList.setLayout(new BoxLayout(recList, BoxLayout.Y_AXIS));
+        recList.setBackground(BG); recList.setAlignmentX(LEFT_ALIGNMENT);
+
+        List<Booking> recent = new ArrayList<>(db.getAllBookings());
+        for (int i = Math.max(0, recent.size() - 4); i < recent.size(); i++) {
+            recList.add(miniBookingRow(recent.get(i)));
+            recList.add(Box.createVerticalStrut(6));
+        }
+
+        panel.add(title); panel.add(Box.createVerticalStrut(2)); panel.add(sub);
+        panel.add(Box.createVerticalStrut(20));
+        panel.add(kpiRow);
+        panel.add(Box.createVerticalStrut(20));
+        panel.add(chartsRow);
+        panel.add(Box.createVerticalStrut(20));
+        panel.add(recTitle);
+        panel.add(Box.createVerticalStrut(10));
+        panel.add(recList);
+        return panel;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  SCREEN 2 — CUSTOMERS
+    // ═══════════════════════════════════════════════════════════════════════
+
+    JPanel buildCustomers() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(BG);
+        panel.setBorder(new EmptyBorder(24, 28, 24, 28));
+
+        JLabel title = lbl("Customer Management", 22, true, TEXT_DARK);
+
+        String[] cols = {"ID", "Name", "Email", "Phone", "Address", "Bookings"};
+        DefaultTableModel model = new DefaultTableModel(cols, 0) {
+            public boolean isCellEditable(int r, int c) { return false; }
+        };
+        for (Customer c : db.getCustomers()) {
+            model.addRow(new Object[]{
+                c.getUserId(), c.getName(), c.getEmail(),
+                c.getPhone(), c.getAddress(), c.getBookingHistory().size()
+            });
+        }
+
+        JTable table = styledTable(model);
+        table.getColumnModel().getColumn(0).setPreferredWidth(70);
+        table.getColumnModel().getColumn(5).setPreferredWidth(80);
+
+        // Action buttons
+        JButton deleteBtn = dangerButton("Delete Customer");
+        deleteBtn.addActionListener(e -> {
+            int row = table.getSelectedRow();
+            if (row < 0) { warn("Select a customer first."); return; }
+            String id = model.getValueAt(row, 0).toString();
+            Customer c = db.getCustomerById(id);
+            if (c == null) return;
+            int confirm = JOptionPane.showConfirmDialog(this,
+                "Delete customer \"" + c.getName() + "\" and all their bookings?",
+                "Confirm Delete", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+            if (confirm == JOptionPane.YES_OPTION) {
+                admin.forceCancel(null); // OOP demo — admin capability
+                db.removeCustomer(c);
+                model.removeRow(row);
+                info("Customer deleted successfully.");
+            }
+        });
+
+        JLabel countLbl = lbl(db.getCustomers().size() + " customers registered", 13, false, TEXT_MUTED);
+
+        JPanel hdr = new JPanel(new BorderLayout());
+        hdr.setBackground(BG); hdr.setBorder(new EmptyBorder(0, 0, 12, 0));
+        JPanel hdrLeft = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        hdrLeft.setBackground(BG); hdrLeft.add(title); hdrLeft.add(Box.createHorizontalStrut(16)); hdrLeft.add(countLbl);
+        hdr.add(hdrLeft, BorderLayout.WEST);
+        hdr.add(deleteBtn, BorderLayout.EAST);
+
+        panel.add(hdr, BorderLayout.NORTH);
+        panel.add(new JScrollPane(table), BorderLayout.CENTER);
+        return panel;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  SCREEN 3 — PROVIDERS
+    // ═══════════════════════════════════════════════════════════════════════
+
+    JPanel buildProviders() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(BG);
+        panel.setBorder(new EmptyBorder(24, 28, 24, 28));
+
+        JLabel title = lbl("Provider Management", 22, true, TEXT_DARK);
+
+        String[] cols = {"ID", "Name", "Specialty", "Phone", "Rating", "Jobs", "Status"};
+        DefaultTableModel model = new DefaultTableModel(cols, 0) {
+            public boolean isCellEditable(int r, int c) { return false; }
+        };
+        for (ServiceProvider p : db.getProviders()) {
+            model.addRow(new Object[]{
+                p.getUserId(), p.getName(), p.getSpecialty(), p.getPhone(),
+                p.getTotalRatings() > 0 ? String.format("%.1f \u2605", p.getRating()) : "N/A",
+                p.getAssignedBookings().size(),
+                p.isAvailable() ? "Active" : "Suspended"
+            });
+        }
+
+        JTable table = styledTable(model);
+        // Color status column
+        table.getColumnModel().getColumn(6).setCellRenderer((t, v, sel, foc, row, col) -> {
+            boolean active = "Active".equals(v);
+            JLabel l = new JLabel(" " + v + " ");
+            l.setOpaque(true);
+            l.setBackground(active ? new Color(220, 252, 231) : new Color(254, 226, 226));
+            l.setForeground(active ? new Color(22, 101, 52) : new Color(153, 27, 27));
+            l.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            l.setBorder(new EmptyBorder(3, 8, 3, 8));
+            return l;
+        });
+
+        JButton suspendBtn = new JButton("Suspend Provider");
+        suspendBtn.setBackground(new Color(254, 243, 199)); suspendBtn.setForeground(new Color(146, 64, 14));
+        suspendBtn.setFont(new Font("Segoe UI", Font.BOLD, 13)); suspendBtn.setFocusPainted(false);
+        suspendBtn.setBorder(BorderFactory.createCompoundBorder(new LineBorder(new Color(253,230,138),1,true), new EmptyBorder(7,16,7,16)));
+        suspendBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        JButton reinstateBtn = primaryButton("Reinstate");
+
+        suspendBtn.addActionListener(e -> {
+            int row = table.getSelectedRow();
+            if (row < 0) { warn("Select a provider first."); return; }
+            ServiceProvider p = db.getProviders().get(row);
+            admin.suspendProvider(p);
+            db.save();
+            model.setValueAt("Suspended", row, 6);
+            info(p.getName() + " has been suspended.");
+        });
+
+        reinstateBtn.addActionListener(e -> {
+            int row = table.getSelectedRow();
+            if (row < 0) { warn("Select a provider first."); return; }
+            ServiceProvider p = db.getProviders().get(row);
+            admin.reinstateProvider(p);
+            db.save();
+            model.setValueAt("Active", row, 6);
+            info(p.getName() + " has been reinstated.");
+        });
+
+        JPanel hdr = new JPanel(new BorderLayout());
+        hdr.setBackground(BG); hdr.setBorder(new EmptyBorder(0, 0, 12, 0));
+        hdr.add(title, BorderLayout.WEST);
+        JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        btnRow.setBackground(BG); btnRow.add(suspendBtn); btnRow.add(reinstateBtn);
+        hdr.add(btnRow, BorderLayout.EAST);
+
+        panel.add(hdr, BorderLayout.NORTH);
+        panel.add(new JScrollPane(table), BorderLayout.CENTER);
+        return panel;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  SCREEN 4 — ALL BOOKINGS
+    // ═══════════════════════════════════════════════════════════════════════
+
+    JPanel buildBookings() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(BG);
+        panel.setBorder(new EmptyBorder(24, 28, 24, 28));
+
+        JLabel title = lbl("All Bookings", 22, true, TEXT_DARK);
+
+        String[] cols = {"ID", "Customer", "Provider", "Service", "Scheduled", "Price", "Status"};
+        DefaultTableModel model = new DefaultTableModel(cols, 0) {
+            public boolean isCellEditable(int r, int c) { return false; }
+        };
+        List<Booking> all = db.getAllBookings();
+        for (Booking b : all) {
+            model.addRow(new Object[]{
+                b.getBookingId(), b.getCustomerName(), b.getProviderName(),
+                b.getServiceName(), b.getFormattedDateTime(),
+                b.getFormattedPrice(), b.getStatus()
+            });
+        }
+
+        JTable table = styledTable(model);
+        table.getColumnModel().getColumn(6).setCellRenderer((t, v, sel, foc, row, col) -> statusBadge(v.toString()));
+
+        JButton cancelBtn = dangerButton("Force Cancel Booking");
+        cancelBtn.addActionListener(e -> {
+            int row = table.getSelectedRow();
+            if (row < 0) { warn("Select a booking to cancel."); return; }
+            Booking b = all.get(row);
+            if (b.getStatus().equals("Cancelled") || b.getStatus().equals("Completed")) {
+                warn("This booking cannot be cancelled (already " + b.getStatus() + ")."); return;
+            }
+            admin.forceCancel(b);
+            db.save();
+            model.setValueAt("Cancelled", row, 6);
+            info("Booking " + b.getBookingId() + " force-cancelled.");
+        });
+
+        // Filter by status
+        String[] statusOpts = {"All Statuses", "Pending", "Accepted", "Completed", "Rejected", "Cancelled"};
+        JComboBox<String> statusFilter = new JComboBox<>(statusOpts);
+        statusFilter.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        statusFilter.setPreferredSize(new Dimension(160, 34));
+        statusFilter.addActionListener(e -> {
+            String sel = (String) statusFilter.getSelectedItem();
+            model.setRowCount(0);
+            for (Booking b : all) {
+                if ("All Statuses".equals(sel) || b.getStatus().equals(sel)) {
+                    model.addRow(new Object[]{
+                        b.getBookingId(), b.getCustomerName(), b.getProviderName(),
+                        b.getServiceName(), b.getFormattedDateTime(),
+                        b.getFormattedPrice(), b.getStatus()
+                    });
+                }
+            }
+        });
+
+        JPanel hdr = new JPanel(new BorderLayout());
+        hdr.setBackground(BG); hdr.setBorder(new EmptyBorder(0, 0, 12, 0));
+        JPanel hdrLeft = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        hdrLeft.setBackground(BG); hdrLeft.add(title);
+        hdrLeft.add(lbl("Filter:", 13, false, TEXT_MUTED)); hdrLeft.add(statusFilter);
+        hdr.add(hdrLeft, BorderLayout.WEST);
+        hdr.add(cancelBtn, BorderLayout.EAST);
+
+        panel.add(hdr, BorderLayout.NORTH);
+        panel.add(new JScrollPane(table), BorderLayout.CENTER);
+        return panel;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  SCREEN 5 — ANALYTICS
+    // ═══════════════════════════════════════════════════════════════════════
+
+    JPanel buildAnalytics() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(BG);
+        panel.setBorder(new EmptyBorder(28, 28, 28, 28));
+
+        JLabel title = lbl("Analytics & Revenue", 22, true, TEXT_DARK);
+        JLabel sub   = lbl("Financial performance and provider rankings", 13, false, TEXT_MUTED);
+        title.setAlignmentX(LEFT_ALIGNMENT); sub.setAlignmentX(LEFT_ALIGNMENT);
+
+        // ── Revenue summary cards ────────────────────────────────────────────
+        JPanel revRow = new JPanel(new GridLayout(1, 4, 12, 0));
+        revRow.setBackground(BG); revRow.setAlignmentX(LEFT_ALIGNMENT);
+        revRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 100));
+
+        Map<String, Double> revByCat = db.revenueByCategory();
+        String[] catNames = {"Plumbing", "Electrical", "Cleaning", "AC Repair"};
+        Color[]  catClrs  = {PRIMARY, SUCCESS, WARNING, DANGER};
+        for (int i = 0; i < catNames.length; i++) {
+            double rev = revByCat.getOrDefault(catNames[i], 0.0);
+            revRow.add(kpiCard(catNames[i], String.format("PKR %,.0f", rev),
+                new Color(239 - i*10, 246 - i*5, 255), catClrs[i]));
+        }
+
+        // ── Revenue bar chart (by category) ─────────────────────────────────
+        String[] catLabels = revByCat.keySet().toArray(new String[0]);
+        int[]    catVals   = revByCat.values().stream().mapToInt(d -> (int) d).toArray();
+        JPanel revenueChart = buildBarChart("Revenue by Category (PKR)", catLabels, catVals, CHART_COLORS);
+        revenueChart.setAlignmentX(LEFT_ALIGNMENT);
+        revenueChart.setMaximumSize(new Dimension(Integer.MAX_VALUE, 300));
+
+        // ── Top providers bar chart ──────────────────────────────────────────
+        List<ServiceProvider> providers = new ArrayList<>(db.getProviders());
+        providers.sort((a, b) -> Integer.compare(b.getAssignedBookings().size(), a.getAssignedBookings().size()));
+        String[] provNames = providers.stream().map(ServiceProvider::getName).toArray(String[]::new);
+        int[]    provJobs  = providers.stream().mapToInt(p -> p.getAssignedBookings().size()).toArray();
+        JPanel provChart = buildBarChart("Provider Job Count", provNames, provJobs, CHART_COLORS);
+        provChart.setAlignmentX(LEFT_ALIGNMENT);
+        provChart.setMaximumSize(new Dimension(Integer.MAX_VALUE, 280));
+
+        // ── Provider ratings table ───────────────────────────────────────────
+        JLabel ratTitle = lbl("Provider Ratings", 16, true, TEXT_DARK);
+        ratTitle.setAlignmentX(LEFT_ALIGNMENT);
+
+        String[] ratCols = {"Provider", "Specialty", "Rating", "Total Reviews", "Jobs Completed"};
+        DefaultTableModel ratModel = new DefaultTableModel(ratCols, 0) {
+            public boolean isCellEditable(int r, int c) { return false; }
+        };
+        for (ServiceProvider p : providers) {
+            long completed = p.getAssignedBookings().stream()
+                .filter(b -> b.getStatus().equals("Completed")).count();
+            ratModel.addRow(new Object[]{
+                p.getName(), p.getSpecialty(),
+                p.getTotalRatings() > 0 ? String.format("%.1f \u2605", p.getRating()) : "No ratings",
+                p.getTotalRatings(), completed
+            });
+        }
+        JTable ratTable = styledTable(ratModel);
+        ratTable.setPreferredScrollableViewportSize(new Dimension(0, 120));
+        JScrollPane ratScroll = new JScrollPane(ratTable);
+        ratScroll.setBorder(new LineBorder(BORDER, 1, true));
+        ratScroll.setAlignmentX(LEFT_ALIGNMENT);
+        ratScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 160));
+
+        panel.add(title); panel.add(Box.createVerticalStrut(2)); panel.add(sub);
+        panel.add(Box.createVerticalStrut(16));
+        panel.add(revRow);
+        panel.add(Box.createVerticalStrut(20));
+        panel.add(revenueChart);
+        panel.add(Box.createVerticalStrut(20));
+        panel.add(provChart);
+        panel.add(Box.createVerticalStrut(16));
+        panel.add(ratTitle); panel.add(Box.createVerticalStrut(8));
+        panel.add(ratScroll);
+
+        JScrollPane outerScroll = new JScrollPane(panel);
+        outerScroll.setBorder(BorderFactory.createEmptyBorder());
+        outerScroll.getVerticalScrollBar().setUnitIncrement(16);
+        JPanel wrapper = new JPanel(new BorderLayout());
+        wrapper.setBackground(BG);
+        wrapper.add(outerScroll, BorderLayout.CENTER);
+        return wrapper;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  CHARTS  — pure Java2D, no libraries
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Builds a bar chart panel drawn with Graphics2D.
+     * labels[] and values[] must be the same length.
+     */
+    JPanel buildBarChart(String chartTitle, String[] labels, int[] values, Color[] colors) {
+        JPanel wrapper = new JPanel(new BorderLayout());
+        wrapper.setBackground(CARD_BG);
+        wrapper.setBorder(BorderFactory.createCompoundBorder(
+            new LineBorder(BORDER, 1, true), new EmptyBorder(16, 20, 16, 20)));
+
+        JLabel tl = lbl(chartTitle, 14, true, TEXT_DARK);
+        tl.setBorder(new EmptyBorder(0, 0, 10, 0));
+
+        JPanel canvas = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+                int W = getWidth(), H = getHeight();
+                int padL = 55, padR = 20, padT = 10, padB = 50;
+                int chartW = W - padL - padR;
+                int chartH = H - padT - padB;
+                if (chartH <= 0 || chartW <= 0 || labels.length == 0) return;
+
+                int maxVal = 0;
+                for (int v : values) maxVal = Math.max(maxVal, v);
+                if (maxVal == 0) maxVal = 1;
+
+                // Grid lines
+                g2.setStroke(new BasicStroke(0.5f));
+                g2.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+                int gridLines = 4;
+                for (int i = 0; i <= gridLines; i++) {
+                    int y = padT + chartH - (i * chartH / gridLines);
+                    g2.setColor(BORDER);
+                    g2.drawLine(padL, y, padL + chartW, y);
+                    g2.setColor(TEXT_MUTED);
+                    String gridLbl = String.valueOf(i * maxVal / gridLines);
+                    g2.drawString(gridLbl, padL - g2.getFontMetrics().stringWidth(gridLbl) - 6, y + 4);
+                }
+
+                // Bars
+                int n = labels.length;
+                int gap = Math.max(6, chartW / (n * 6));
+                int barW = (chartW - gap * (n + 1)) / n;
+                if (barW < 4) barW = 4;
+
+                for (int i = 0; i < n; i++) {
+                    int barH = (int) ((double) values[i] / maxVal * chartH);
+                    int x = padL + gap + i * (barW + gap);
+                    int y = padT + chartH - barH;
+
+                    // Bar fill
+                    g2.setColor(colors[i % colors.length]);
+                    g2.fillRoundRect(x, y, barW, barH, 6, 6);
+
+                    // Value label above bar
+                    g2.setColor(TEXT_DARK);
+                    g2.setFont(new Font("Segoe UI", Font.BOLD, 10));
+                    String valStr = String.valueOf(values[i]);
+                    int valX = x + (barW - g2.getFontMetrics().stringWidth(valStr)) / 2;
+                    if (y - 4 > padT) g2.drawString(valStr, valX, y - 4);
+
+                    // X-axis label (word wrap if needed)
+                    g2.setColor(TEXT_MUTED);
+                    g2.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+                    String lb = labels[i];
+                    // Break at space if long
+                    String[] words = lb.split(" ");
+                    int lblY = padT + chartH + 16;
+                    if (words.length > 1 && barW < 80) {
+                        for (String w : words) {
+                            int lx = x + (barW - g2.getFontMetrics().stringWidth(w)) / 2;
+                            g2.drawString(w, lx, lblY);
+                            lblY += 12;
+                        }
+                    } else {
+                        int lx = x + (barW - g2.getFontMetrics().stringWidth(lb)) / 2;
+                        g2.drawString(lb, lx, lblY);
+                    }
+                }
+
+                // Y-axis line
+                g2.setColor(BORDER);
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawLine(padL, padT, padL, padT + chartH);
+            }
+        };
+        canvas.setBackground(CARD_BG);
+        canvas.setPreferredSize(new Dimension(0, 220));
+
+        wrapper.add(tl, BorderLayout.NORTH);
+        wrapper.add(canvas, BorderLayout.CENTER);
+        return wrapper;
+    }
+
+    /**
+     * Builds a donut/pie chart panel drawn with Graphics2D.
+     */
+    JPanel buildDonutChart(String chartTitle, String[] labels, int[] values, Color[] colors) {
+        JPanel wrapper = new JPanel(new BorderLayout(0, 0));
+        wrapper.setBackground(CARD_BG);
+        wrapper.setBorder(BorderFactory.createCompoundBorder(
+            new LineBorder(BORDER, 1, true), new EmptyBorder(16, 20, 16, 20)));
+
+        JLabel tl = lbl(chartTitle, 14, true, TEXT_DARK);
+        tl.setBorder(new EmptyBorder(0, 0, 10, 0));
+
+        JPanel canvas = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+                int W = getWidth(), H = getHeight();
+                int total = 0;
+                for (int v : values) total += v;
+                if (total == 0) {
+                    g2.setColor(TEXT_MUTED);
+                    g2.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+                    g2.drawString("No data yet", W / 2 - 35, H / 2);
+                    return;
+                }
+
+                int dia  = Math.min(W / 2 - 20, H - 30);
+                int ox   = (W / 2 - dia) / 2;
+                int oy   = (H - dia) / 2;
+                int hole = (int)(dia * 0.55); // donut hole
+                int hx   = ox + (dia - hole) / 2;
+                int hy   = oy + (dia - hole) / 2;
+
+                // Draw arcs
+                double angle = -90;
+                for (int i = 0; i < values.length; i++) {
+                    double sweep = (double) values[i] / total * 360;
+                    g2.setColor(colors[i % colors.length]);
+                    g2.fillArc(ox, oy, dia, dia, (int) angle, (int) sweep);
+                    angle += sweep;
+                }
+
+                // Knock out centre hole
+                g2.setColor(CARD_BG);
+                g2.fillOval(hx, hy, hole, hole);
+
+                // Centre text — total
+                g2.setColor(TEXT_DARK);
+                g2.setFont(new Font("Segoe UI", Font.BOLD, 20));
+                String tot = String.valueOf(total);
+                FontMetrics fm = g2.getFontMetrics();
+                g2.drawString(tot, W/4 - fm.stringWidth(tot)/2, H/2 + 7);
+                g2.setColor(TEXT_MUTED);
+                g2.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+                g2.drawString("total", W/4 - 10, H/2 + 20);
+
+                // Legend on the right
+                int legX = W / 2 + 10;
+                int legY = H / 2 - (labels.length * 22) / 2;
+                g2.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+                for (int i = 0; i < labels.length; i++) {
+                    g2.setColor(colors[i % colors.length]);
+                    g2.fillRoundRect(legX, legY + i * 22, 12, 12, 4, 4);
+                    g2.setColor(TEXT_DARK);
+                    String pct = values[i] + " (" + (total > 0 ? (values[i]*100/total) : 0) + "%)";
+                    g2.drawString(labels[i] + ": " + pct, legX + 18, legY + i * 22 + 11);
+                }
+            }
+        };
+        canvas.setBackground(CARD_BG);
+        canvas.setPreferredSize(new Dimension(0, 220));
+
+        wrapper.add(tl, BorderLayout.NORTH);
+        wrapper.add(canvas, BorderLayout.CENTER);
+        return wrapper;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  UI HELPERS
+    // ═══════════════════════════════════════════════════════════════════════
+
+    JPanel kpiCard(String label, String value, Color bg, Color accent) {
+        JPanel p = new JPanel();
+        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
+        p.setBackground(bg);
+        p.setBorder(BorderFactory.createCompoundBorder(
+            new LineBorder(accent.brighter(), 1, true),
+            new EmptyBorder(14, 16, 14, 16)));
+        JLabel vl = lbl(value, 26, true, accent); vl.setAlignmentX(LEFT_ALIGNMENT);
+        JLabel ll = lbl(label,  12, false, TEXT_MUTED); ll.setAlignmentX(LEFT_ALIGNMENT);
+        p.add(vl); p.add(Box.createVerticalStrut(4)); p.add(ll);
+        return p;
+    }
+
+    JPanel miniBookingRow(Booking b) {
+        JPanel row = new JPanel(new BorderLayout(10, 0));
+        row.setBackground(CARD_BG);
+        row.setBorder(BorderFactory.createCompoundBorder(
+            new LineBorder(BORDER, 1, true), new EmptyBorder(10, 14, 10, 14)));
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 56));
+        row.setAlignmentX(LEFT_ALIGNMENT);
+
+        JPanel info = new JPanel(); info.setLayout(new BoxLayout(info, BoxLayout.Y_AXIS));
+        info.setBackground(CARD_BG);
+        info.add(lbl(b.getServiceName() + " — " + b.getCustomerName(), 13, true, TEXT_DARK));
+        info.add(lbl(b.getProviderName() + "  ·  " + b.getFormattedPrice(), 11, false, TEXT_MUTED));
+        row.add(info, BorderLayout.CENTER);
+        row.add(statusBadge(b.getStatus()), BorderLayout.EAST);
+        return row;
+    }
+
+    JTable styledTable(DefaultTableModel model) {
+        JTable t = new JTable(model);
+        t.setRowHeight(36);
+        t.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        t.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
+        t.getTableHeader().setBackground(new Color(241, 245, 249));
+        t.getTableHeader().setForeground(TEXT_DARK);
+        t.setGridColor(BORDER);
+        t.setSelectionBackground(new Color(239, 246, 255));
+        t.setShowVerticalLines(false);
+        t.setIntercellSpacing(new Dimension(0, 1));
+        return t;
+    }
+
+    JLabel statusBadge(String status) {
+        Color bg, fg;
+        switch (status) {
+            case "Accepted":  bg = new Color(220,252,231); fg = new Color(22,101,52);  break;
+            case "Pending":   bg = new Color(254,243,199); fg = new Color(146,64,14);  break;
+            case "Rejected":  bg = new Color(254,226,226); fg = new Color(153,27,27);  break;
+            case "Completed": bg = new Color(219,234,254); fg = new Color(30,64,175);  break;
+            default:          bg = new Color(241,245,249); fg = new Color(71,85,105);  break;
+        }
+        JLabel l = new JLabel(" " + status + " ");
+        l.setOpaque(true); l.setBackground(bg); l.setForeground(fg);
+        l.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        l.setBorder(new EmptyBorder(3, 8, 3, 8));
+        return l;
+    }
+
+    static JLabel lbl(String text, int size, boolean bold, Color color) {
+        JLabel l = new JLabel(text);
+        l.setFont(new Font("Segoe UI", bold ? Font.BOLD : Font.PLAIN, size));
+        l.setForeground(color);
+        return l;
+    }
+
+    JButton primaryButton(String text) {
+        JButton btn = new JButton(text);
+        btn.setBackground(PRIMARY); btn.setForeground(Color.WHITE);
+        btn.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        btn.setBorder(BorderFactory.createCompoundBorder(
+            new LineBorder(PRIMARY_DARK, 1, true), new EmptyBorder(7, 16, 7, 16)));
+        btn.setFocusPainted(false); btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btn.addMouseListener(new MouseAdapter() {
+            public void mouseEntered(MouseEvent e) { btn.setBackground(PRIMARY_DARK); }
+            public void mouseExited(MouseEvent e)  { btn.setBackground(PRIMARY); }
+        });
+        return btn;
+    }
+
+    JButton dangerButton(String text) {
+        JButton btn = new JButton(text);
+        btn.setBackground(new Color(254, 226, 226)); btn.setForeground(DANGER);
+        btn.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        btn.setBorder(BorderFactory.createCompoundBorder(
+            new LineBorder(new Color(252, 165, 165), 1, true), new EmptyBorder(7, 16, 7, 16)));
+        btn.setFocusPainted(false); btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        return btn;
+    }
+
+    JButton navBtn(String text, boolean active) {
+        JButton btn = new JButton(text);
+        btn.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        btn.setForeground(active ? Color.WHITE : new Color(148, 163, 184));
+        btn.setBackground(active ? SIDEBAR_ACTIVE : SIDEBAR_BG);
+        btn.setBorder(new EmptyBorder(10, 20, 10, 20));
+        btn.setFocusPainted(false);
+        btn.setHorizontalAlignment(SwingConstants.LEFT);
+        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+        btn.setAlignmentX(LEFT_ALIGNMENT);
+        btn.addMouseListener(new MouseAdapter() {
+            public void mouseEntered(MouseEvent e) {
+                if (!btn.getBackground().equals(SIDEBAR_ACTIVE)) {
+                    btn.setBackground(new Color(30, 41, 59)); btn.setForeground(Color.WHITE);
+                }
+            }
+            public void mouseExited(MouseEvent e) {
+                if (!btn.getBackground().equals(SIDEBAR_ACTIVE)) {
+                    btn.setBackground(SIDEBAR_BG); btn.setForeground(new Color(148, 163, 184));
+                }
+            }
+        });
+        return btn;
+    }
+
+    void warn(String msg) { JOptionPane.showMessageDialog(this, msg, "Warning", JOptionPane.WARNING_MESSAGE); }
+    void info(String msg) { JOptionPane.showMessageDialog(this, msg, "Done",    JOptionPane.INFORMATION_MESSAGE); }
+}
