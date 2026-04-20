@@ -1,0 +1,218 @@
+package homeservicessystem;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+public class DataStore {
+    private static DataStore instance;
+    private List<Customer> customers;
+    private List<ServiceProvider> providers;
+    private List<Service> services;
+    private List<Booking> allBookings;
+    private List<Admin> admins;
+    private int nextId = 100;
+
+    private DataStore() {
+        customers   = new ArrayList<>();
+        providers   = new ArrayList<>();
+        services    = new ArrayList<>();
+        allBookings = new ArrayList<>();
+        admins      = new ArrayList<>();
+
+        boolean loaded = DataPersistence.loadAll(this);
+        if (!loaded) {
+            System.out.println("[DataStore] No save files found — loading sample data.");
+            loadSampleData();
+        } else {
+            System.out.println("[DataStore] Loaded saved data from: "
+                + DataPersistence.getSaveLocation());
+        }
+        loadServicesAlways();
+        loadAdminsAlways();   // admins are always hard-coded (not in CSV)
+    }
+
+    public static DataStore getInstance() {
+        if (instance == null) instance = new DataStore();
+        return instance;
+    }
+
+    public String generateId() { return "ID" + (nextId++); }
+
+    // ── Services always reloaded from code ───────────────────────────────────
+    private void loadServicesAlways() {
+        services.clear();
+        Service s1 = new Service("S001","Pipe Repair",      "Plumbing",   1500, 60,  "Fix leaking or broken pipes",        "P001");
+        Service s2 = new Service("S002","Drain Cleaning",   "Plumbing",   1000, 45,  "Unclog drains and clean pipes",      "P001");
+        Service s3 = new Service("S003","Wiring Install",   "Electrical", 2500, 120, "New wiring and socket installation", "P002");
+        Service s4 = new Service("S004","Fan Repair",       "Electrical",  800, 30,  "Ceiling and wall fan repair",        "P002");
+        Service s5 = new Service("S005","Home Deep Clean",  "Cleaning",   3000, 180, "Full house deep clean",              "P003");
+        Service s6 = new Service("S006","Kitchen Cleaning", "Cleaning",   1500, 90,  "Complete kitchen cleaning",          "P003");
+        Service s7 = new Service("S007","AC Gas Refill",    "AC Repair",  2000, 60,  "Refrigerant refill and checkup",     "P004");
+        Service s8 = new Service("S008","AC Full Service",  "AC Repair",  3500, 120, "Complete AC service and cleaning",   "P004");
+        services.add(s1); services.add(s2); services.add(s3); services.add(s4);
+        services.add(s5); services.add(s6); services.add(s7); services.add(s8);
+        for (ServiceProvider p : providers) p.getOfferedServices().clear();
+        for (Service s : services) {
+            ServiceProvider p = getProviderById(s.getProviderId());
+            if (p != null) p.addService(s);
+        }
+    }
+
+    // ── Admin accounts always hard-coded (never stored in CSV) ───────────────
+    private void loadAdminsAlways() {
+        admins.clear();
+        admins.add(new Admin("ADMIN001", "System Admin", "admin@home.com",
+                             "admin123", "0300-0000001", true));
+        admins.add(new Admin("ADMIN002", "Support Staff", "support@home.com",
+                             "support123", "0300-0000002", false));
+    }
+
+    // ── Sample data (only first run) ─────────────────────────────────────────
+    private void loadSampleData() {
+        Customer c1 = new Customer("C001","Ahmed Khan", "ahmed@gmail.com","1234","0300-1234567","House 5, Rawalpindi");
+        Customer c2 = new Customer("C002","Sara Ali",   "sara@gmail.com", "1234","0301-9876543","Flat 10, Islamabad");
+        Customer c3 = new Customer("C003","Bilal Raza",  "bilal@gmail.com","1234","0302-1122334","G-10, Islamabad");
+        customers.add(c1); customers.add(c2); customers.add(c3);
+
+        ServiceProvider p1 = new ServiceProvider("P001","Usman Plumbing","usman@pro.com", "1234","0321-1111111","Plumbing");
+        ServiceProvider p2 = new ServiceProvider("P002","Ali Electric",  "ali@pro.com",   "1234","0322-2222222","Electrical");
+        ServiceProvider p3 = new ServiceProvider("P003","Clean Home Co.","clean@pro.com", "1234","0323-3333333","Cleaning");
+        ServiceProvider p4 = new ServiceProvider("P004","CoolAir AC",   "coolair@pro.com","1234","0324-4444444","AC Repair");
+        providers.add(p1); providers.add(p2); providers.add(p3); providers.add(p4);
+        p1.addRating(5); p1.addRating(4);
+        p2.addRating(5); p2.addRating(5); p2.addRating(4);
+        p3.addRating(4); p3.addRating(3);
+        p4.addRating(5);
+
+        // Sample bookings across statuses for richer chart data
+        LocalDateTime now = LocalDateTime.now();
+        Booking b1 = new Booking("B001","C001","P001","S001", now.minusDays(5),"Urgent fix",      c1.getName(),p1.getName(),"Pipe Repair",1500);  b1.setStatus("Completed");
+        Booking b2 = new Booking("B002","C002","P002","S003", now.minusDays(3),"New wiring",      c2.getName(),p2.getName(),"Wiring Install",2500); b2.setStatus("Accepted");
+        Booking b3 = new Booking("B003","C001","P003","S005", now.minusDays(1),"",                c1.getName(),p3.getName(),"Home Deep Clean",3000); b3.setStatus("Pending");
+        Booking b4 = new Booking("B004","C002","P004","S007", now.minusDays(4),"",                c2.getName(),p4.getName(),"AC Gas Refill",2000);   b4.setStatus("Completed");
+        Booking b5 = new Booking("B005","C003","P001","S002", now.minusDays(2),"Please hurry",    c3.getName(),p1.getName(),"Drain Cleaning",1000);  b5.setStatus("Rejected");
+        Booking b6 = new Booking("B006","C003","P002","S004", now,             "",                c3.getName(),p2.getName(),"Fan Repair",800);        b6.setStatus("Pending");
+
+        c1.addBooking(b1); c1.addBooking(b3);
+        c2.addBooking(b2); c2.addBooking(b4);
+        c3.addBooking(b5); c3.addBooking(b6);
+        p1.addBooking(b1); p1.addBooking(b5);
+        p2.addBooking(b2); p2.addBooking(b6);
+        p3.addBooking(b3);
+        p4.addBooking(b4);
+        allBookings.add(b1); allBookings.add(b2); allBookings.add(b3);
+        allBookings.add(b4); allBookings.add(b5); allBookings.add(b6);
+    }
+
+    // ── Persistence ──────────────────────────────────────────────────────────
+    public void save() { DataPersistence.saveAll(this); }
+
+    // ── Getters ───────────────────────────────────────────────────────────────
+    public List<Customer>        getCustomers()  { return customers; }
+    public List<ServiceProvider> getProviders()  { return providers; }
+    public List<Service>         getServices()   { return services; }
+    public List<Booking>         getAllBookings() { return allBookings; }
+    public List<Admin>           getAdmins()     { return admins; }
+
+    // ── Mutations ─────────────────────────────────────────────────────────────
+    public void addCustomer(Customer c)        { customers.add(c);    save(); }
+    public void addProvider(ServiceProvider p) { providers.add(p);    save(); }
+    public void addBooking(Booking b)          { allBookings.add(b);  save(); }
+
+    public void removeCustomer(Customer c) {
+        customers.remove(c);
+        allBookings.removeIf(b -> b.getCustomerId().equals(c.getUserId()));
+        save();
+    }
+
+    public void removeProvider(ServiceProvider p) {
+        providers.remove(p);
+        allBookings.removeIf(b -> b.getProviderId().equals(p.getUserId()));
+        save();
+    }
+
+    // ── Login (now checks admins too) ─────────────────────────────────────────
+    public User login(String email, String password) {
+        for (Admin a : admins)              if (a.login(email, password)) return a;
+        for (Customer c : customers)        if (c.login(email, password)) return c;
+        for (ServiceProvider p : providers) if (p.login(email, password)) return p;
+        return null;
+    }
+
+    public boolean emailExists(String email) {
+        for (Customer c : customers)        if (c.getEmail().equals(email)) return true;
+        for (ServiceProvider p : providers) if (p.getEmail().equals(email)) return true;
+        return false;
+    }
+
+    // ── Lookup helpers ────────────────────────────────────────────────────────
+    public ServiceProvider getProviderById(String id) {
+        for (ServiceProvider p : providers) if (p.getUserId().equals(id)) return p;
+        return null;
+    }
+
+    public Customer getCustomerById(String id) {
+        for (Customer c : customers) if (c.getUserId().equals(id)) return c;
+        return null;
+    }
+
+    public Service getServiceById(String id) {
+        for (Service s : services) if (s.getServiceId().equals(id)) return s;
+        return null;
+    }
+
+    public List<Service> getServicesByCategory(String category) {
+        List<Service> result = new ArrayList<>();
+        for (Service s : services)
+            if (category.equals("All") || s.getCategory().equals(category)) result.add(s);
+        return result;
+    }
+
+    public ServiceProvider getProviderForService(String serviceId) {
+        for (Service s : services)
+            if (s.getServiceId().equals(serviceId)) return getProviderById(s.getProviderId());
+        return null;
+    }
+
+    // ── Analytics helpers (used by AdminDashboard charts) ────────────────────
+    public double getTotalRevenue() {
+        double sum = 0;
+        for (Booking b : allBookings)
+            if (b.getStatus().equals("Completed")) sum += b.getTotalPrice();
+        return sum;
+    }
+
+    public int countByStatus(String status) {
+        int n = 0;
+        for (Booking b : allBookings) if (b.getStatus().equals(status)) n++;
+        return n;
+    }
+
+    /** Count bookings per service category */
+    public java.util.Map<String, Integer> bookingsByCategory() {
+        java.util.LinkedHashMap<String, Integer> map = new java.util.LinkedHashMap<>();
+        map.put("Plumbing", 0); map.put("Electrical", 0);
+        map.put("Cleaning", 0); map.put("AC Repair", 0);
+        for (Booking b : allBookings) {
+            Service s = getServiceById(b.getServiceId());
+            if (s != null && map.containsKey(s.getCategory()))
+                map.put(s.getCategory(), map.get(s.getCategory()) + 1);
+        }
+        return map;
+    }
+
+    /** Revenue per category */
+    public java.util.Map<String, Double> revenueByCategory() {
+        java.util.LinkedHashMap<String, Double> map = new java.util.LinkedHashMap<>();
+        map.put("Plumbing", 0.0); map.put("Electrical", 0.0);
+        map.put("Cleaning", 0.0); map.put("AC Repair", 0.0);
+        for (Booking b : allBookings) {
+            if (!b.getStatus().equals("Completed")) continue;
+            Service s = getServiceById(b.getServiceId());
+            if (s != null && map.containsKey(s.getCategory()))
+                map.put(s.getCategory(), map.get(s.getCategory()) + b.getTotalPrice());
+        }
+        return map;
+    }
+}
