@@ -1,0 +1,61 @@
+JPanel buildNotificationPanel(String userId) {
+    JPanel panel = new JPanel(new BorderLayout());
+    panel.setBackground(BG);
+    panel.setBorder(new EmptyBorder(24, 28, 24, 28));
+
+    JPanel header = new JPanel(new BorderLayout());
+    header.setBackground(BG);
+    header.setBorder(new EmptyBorder(0, 0, 16, 0));
+    header.add(label("Notifications", 22, true, TEXT_DARK), BorderLayout.WEST);
+
+    JButton clearBtn = outlineButton("Clear All", TEXT_MUTED);
+    clearBtn.addActionListener(e -> { nm.clearAll(userId); panel.revalidate(); });
+    header.add(clearBtn, BorderLayout.EAST);
+
+    JPanel list = new JPanel();
+    list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
+    list.setBackground(BG);
+
+    List<NotificationManager.Notification> notifs = nm.getFor(userId);
+    if (notifs.isEmpty()) {
+        JPanel empty = new JPanel(new GridBagLayout());
+        empty.setBackground(BG);
+        JLabel msg = label("No notifications yet", 15, false, TEXT_MUTED);
+        empty.add(msg);
+        list.add(empty);
+    }
+    for (NotificationManager.Notification n : notifs) {
+        JPanel row = card(14);
+        row.setLayout(new BorderLayout(12, 0));
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 80));
+        row.setAlignmentX(LEFT_ALIGNMENT);
+        if (!n.read) row.setBackground(new Color(239, 246, 255));
+
+        JLabel icon = label(n.getIcon(), 22, false, TEXT_DARK);
+        icon.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 22));
+        icon.setBorder(new EmptyBorder(0, 0, 0, 4));
+
+        JPanel info = new JPanel(); info.setLayout(new BoxLayout(info, BoxLayout.Y_AXIS));
+        info.setBackground(n.read ? CARD_BG : new Color(239, 246, 255));
+        info.add(label(n.title, 14, true, TEXT_DARK));
+        info.add(Box.createVerticalStrut(2));
+        info.add(label("<html><p style='width:400px'>" + n.body + "</p></html>", 12, false, TEXT_MUTED));
+
+        JLabel time = label(n.getFormattedTime(), 11, false, TEXT_MUTED);
+        time.setVerticalAlignment(SwingConstants.TOP);
+
+        row.add(icon, BorderLayout.WEST);
+        row.add(info, BorderLayout.CENTER);
+        row.add(time, BorderLayout.EAST);
+        list.add(row);
+        list.add(Box.createVerticalStrut(8));
+    }
+
+    JScrollPane scroll = new JScrollPane(list);
+    scroll.setBorder(BorderFactory.createEmptyBorder());
+    scroll.getVerticalScrollBar().setUnitIncrement(16);
+
+    panel.add(header, BorderLayout.NORTH);
+    panel.add(scroll, BorderLayout.CENTER);
+    return panel;
+}
