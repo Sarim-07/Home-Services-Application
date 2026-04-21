@@ -1,0 +1,377 @@
+package homeservicessystem;
+
+import javax.swing.*;
+import javax.swing.border.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.awt.geom.*;
+
+/**
+ * SplashScreen — animated startup window shown for ~3 seconds before MainGUI.
+ *
+ * Features:
+ *   • Dark branded panel (matches sidebar colour) with house icon
+ *   • Project title, course code, and team members
+ *   • Animated progress bar that fills smoothly
+ *   • Sequential loading-step messages that tick up as it loads
+ *   • Animated pulsing dot indicator
+ *   • Automatically opens MainGUI when done and disposes itself
+ *
+ * Uses javax.swing.Timer (event-driven, no Thread.sleep needed).
+ */
+public class SplashScreen extends JWindow {
+
+    // ── Palette ──────────────────────────────────────────────────────────────
+    private static final Color BG_DARK    = new Color(15, 23, 42);     // sidebar navy
+    private static final Color BG_CARD    = new Color(22, 33, 56);     // slightly lighter panel
+    private static final Color ACCENT     = new Color(37, 99, 235);    // primary blue
+    private static final Color ACCENT2    = new Color(99, 102, 241);   // indigo highlight
+    private static final Color TEXT_WHITE = Color.WHITE;
+    private static final Color TEXT_MUTED = new Color(148, 163, 184);
+    private static final Color TEXT_DIM   = new Color(71, 85, 105);
+    private static final Color SUCCESS    = new Color(34, 197, 94);
+    private static final Color BAR_TRACK  = new Color(30, 41, 59);
+
+    // ── Loading steps shown in sequence ─────────────────────────────────────
+    private static final String[] STEPS = {
+        "Initialising system...",
+        "Loading service catalogue...",
+        "Connecting data store...",
+        "Restoring saved data...",
+        "Preparing user interface...",
+        "Almost ready..."
+    };
+
+    // ── State ────────────────────────────────────────────────────────────────
+    private int   progress    = 0;   // 0–100
+    private int   stepIndex   = 0;
+    private int   dotFrame    = 0;   // for animated dots
+    private boolean done      = false;
+
+    // ── UI components updated by timer ───────────────────────────────────────
+    private JLabel  stepLabel;
+    private JLabel  pctLabel;
+    private JPanel  barFill;
+    private JLabel  dotLabel;
+
+    // ── Width/height ─────────────────────────────────────────────────────────
+    private static final int W = 620;
+    private static final int H = 380;
+
+    public SplashScreen() {
+        setSize(W, H);
+        setLocationRelativeTo(null);   // centre of screen
+
+        JPanel root = buildUI();
+        add(root);
+
+        setVisible(true);
+
+        // ── Smooth progress timer: fires every 30 ms ─────────────────────────
+        Timer progressTimer = new Timer(30, null);
+        progressTimer.addActionListener(e -> {
+            if (done) return;
+
+            // Advance progress — slow at start and end, fast in middle
+            int increment = progress < 20 || progress > 85 ? 1 : 2;
+            progress = Math.min(100, progress + increment);
+
+            // Update bar width
+            int fillW = (int)((double) progress / 100 * (W - 80));
+            barFill.setPreferredSize(new Dimension(fillW, 8));
+            barFill.revalidate();
+
+            // Update percentage label
+            pctLabel.setText(progress + "%");
+
+            // Step message advances at certain thresholds
+            int[] thresholds = {0, 18, 36, 54, 72, 90};
+            for (int i = thresholds.length - 1; i >= 0; i--) {
+                if (progress >= thresholds[i] && stepIndex < i + 1) {
+                    stepIndex = i + 1 <= STEPS.length ? i + 1 : STEPS.length - 1;
+                    stepLabel.setText(STEPS[Math.min(stepIndex, STEPS.length - 1)]);
+                    if (stepIndex < STEPS.length) stepLabel.setForeground(TEXT_MUTED);
+                    break;
+                }
+            }
+
+            // When complete
+            if (progress >= 100 && !done) {
+                done = true;
+                progressTimer.stop();
+                stepLabel.setText("Ready!");
+                stepLabel.setForeground(SUCCESS);
+                pctLabel.setForeground(SUCCESS);
+                dotLabel.setForeground(SUCCESS);
+                dotLabel.setText("✓");
+
+                // Slight pause then open main app
+                Timer openTimer = new Timer(400, ev -> {
+                    dispose();
+                    SwingUtilities.invokeLater(MainGUI::new);
+                });
+                openTimer.setRepeats(false);
+                openTimer.start();
+            }
+        });
+
+        // ── Dot animation timer: fires every 400 ms ──────────────────────────
+        Timer dotTimer = new Timer(400, e -> {
+            if (done) return;
+            String[] dots = {"●○○", "○●○", "○○●"};
+            dotLabel.setText(dots[dotFrame % 3]);
+            dotFrame++;
+        });
+
+        progressTimer.start();
+        dotTimer.start();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  UI CONSTRUCTION
+    // ═══════════════════════════════════════════════════════════════════════
+
+    private JPanel buildUI() {
+        // Outer panel — dark background, rounded look
+        JPanel root = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+                // Dark background
+                g2.setColor(BG_DARK);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 16, 16);
+
+                // Subtle top accent stripe
+                GradientPaint gp = new GradientPaint(0, 0, ACCENT, getWidth(), 0, ACCENT2);
+                g2.setPaint(gp);
+                g2.fillRoundRect(0, 0, getWidth(), 5, 4, 4);
+                // Fill lower half of stripe to make it flush
+                g2.fillRect(0, 3, getWidth(), 3);
+
+                // Subtle inner glow circle (decorative)
+                g2.setColor(new Color(37, 99, 235, 18));
+                g2.fillOval(-60, -60, 280, 280);
+                g2.fillOval(getWidth() - 160, getHeight() - 160, 280, 280);
+            }
+        };
+        root.setOpaque(false);
+        root.setBackground(BG_DARK);
+        root.setBorder(new EmptyBorder(0, 0, 0, 0));
+
+        // ── TOP SECTION: logo + title ────────────────────────────────────────
+        JPanel top = new JPanel();
+        top.setLayout(new BoxLayout(top, BoxLayout.Y_AXIS));
+        top.setOpaque(false);
+        top.setBorder(new EmptyBorder(44, 52, 0, 52));
+
+        // House icon (large emoji rendered with big font)
+        JLabel houseIcon = new JLabel("\uD83C\uDFE0", SwingConstants.CENTER);
+        houseIcon.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 56));
+        houseIcon.setAlignmentX(CENTER_ALIGNMENT);
+
+        // Blue circle backdrop for the icon
+        JPanel iconWrap = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(new Color(37, 99, 235, 40));
+                g2.fillOval(0, 0, getWidth(), getHeight());
+                g2.setColor(new Color(37, 99, 235, 70));
+                g2.setStroke(new BasicStroke(1.5f));
+                g2.drawOval(1, 1, getWidth() - 2, getHeight() - 2);
+            }
+        };
+        iconWrap.setOpaque(false);
+        iconWrap.setLayout(new GridBagLayout());
+        iconWrap.setPreferredSize(new Dimension(90, 90));
+        iconWrap.setMaximumSize(new Dimension(90, 90));
+        iconWrap.setAlignmentX(CENTER_ALIGNMENT);
+        iconWrap.add(houseIcon);
+
+        // Title
+        JLabel appTitle = new JLabel("Home Services Management System", SwingConstants.CENTER);
+        appTitle.setFont(new Font("Segoe UI", Font.BOLD, 22));
+        appTitle.setForeground(TEXT_WHITE);
+        appTitle.setAlignmentX(CENTER_ALIGNMENT);
+
+        // Course info
+        JLabel courseInfo = new JLabel("CS-212  Object Oriented Programming  |  BESE-16B", SwingConstants.CENTER);
+        courseInfo.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        courseInfo.setForeground(TEXT_MUTED);
+        courseInfo.setAlignmentX(CENTER_ALIGNMENT);
+
+        // Separator line
+        JPanel sep = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g;
+                GradientPaint gp = new GradientPaint(
+                    0, 0, new Color(37, 99, 235, 0),
+                    getWidth() / 2, 0, new Color(37, 99, 235, 120));
+                g2.setPaint(gp);
+                g2.fillRect(0, 0, getWidth() / 2, 1);
+                GradientPaint gp2 = new GradientPaint(
+                    getWidth() / 2, 0, new Color(37, 99, 235, 120),
+                    getWidth(), 0, new Color(37, 99, 235, 0));
+                g2.setPaint(gp2);
+                g2.fillRect(getWidth() / 2, 0, getWidth() / 2, 1);
+            }
+        };
+        sep.setOpaque(false);
+        sep.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
+        sep.setPreferredSize(new Dimension(500, 1));
+        sep.setAlignmentX(CENTER_ALIGNMENT);
+
+        top.add(iconWrap);
+        top.add(Box.createVerticalStrut(14));
+        top.add(appTitle);
+        top.add(Box.createVerticalStrut(6));
+        top.add(courseInfo);
+        top.add(Box.createVerticalStrut(18));
+        top.add(sep);
+
+        // ── MIDDLE SECTION: team info cards ─────────────────────────────────
+        JPanel mid = new JPanel(new FlowLayout(FlowLayout.CENTER, 16, 0));
+        mid.setOpaque(false);
+        mid.setBorder(new EmptyBorder(18, 52, 16, 52));
+
+        mid.add(teamCard("Sarim Farooq Khan", "542714"));
+        mid.add(teamCard("Muhammad Talal Aqdas", "547601"));
+
+        // Instructor chip
+        JPanel instrPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+        instrPanel.setOpaque(false);
+        JLabel instrLbl = new JLabel("Instructor: Dr. M. Daud Abdullah Asif");
+        instrLbl.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        instrLbl.setForeground(TEXT_DIM);
+        instrPanel.add(instrLbl);
+
+        // ── BOTTOM SECTION: progress bar + step label ────────────────────────
+        JPanel bottom = new JPanel();
+        bottom.setLayout(new BoxLayout(bottom, BoxLayout.Y_AXIS));
+        bottom.setOpaque(false);
+        bottom.setBorder(new EmptyBorder(0, 52, 36, 52));
+
+        // Step label row (left: message, right: percentage + dots)
+        JPanel stepRow = new JPanel(new BorderLayout());
+        stepRow.setOpaque(false);
+        stepRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 20));
+        stepRow.setAlignmentX(LEFT_ALIGNMENT);
+
+        stepLabel = new JLabel(STEPS[0]);
+        stepLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        stepLabel.setForeground(TEXT_MUTED);
+
+        JPanel rightRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        rightRow.setOpaque(false);
+
+        dotLabel = new JLabel("●○○");
+        dotLabel.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+        dotLabel.setForeground(ACCENT);
+
+        pctLabel = new JLabel("0%");
+        pctLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        pctLabel.setForeground(ACCENT);
+
+        rightRow.add(dotLabel);
+        rightRow.add(pctLabel);
+        stepRow.add(stepLabel, BorderLayout.WEST);
+        stepRow.add(rightRow, BorderLayout.EAST);
+
+        // Progress bar track
+        JPanel barTrack = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0)) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(BAR_TRACK);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+            }
+        };
+        barTrack.setOpaque(false);
+        barTrack.setPreferredSize(new Dimension(W - 104, 8));
+        barTrack.setMaximumSize(new Dimension(Integer.MAX_VALUE, 8));
+        barTrack.setAlignmentX(LEFT_ALIGNMENT);
+
+        // Progress bar fill (gradient blue → indigo)
+        barFill = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                if (getWidth() > 0) {
+                    GradientPaint gp = new GradientPaint(0, 0, ACCENT, getWidth(), 0, ACCENT2);
+                    g2.setPaint(gp);
+                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+                }
+            }
+        };
+        barFill.setOpaque(false);
+        barFill.setPreferredSize(new Dimension(0, 8));
+        barTrack.add(barFill);
+
+        // Version tag
+        JLabel version = new JLabel("v1.0.0  •  2026");
+        version.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+        version.setForeground(TEXT_DIM);
+        version.setAlignmentX(CENTER_ALIGNMENT);
+
+        bottom.add(stepRow);
+        bottom.add(Box.createVerticalStrut(8));
+        bottom.add(barTrack);
+        bottom.add(Box.createVerticalStrut(14));
+        bottom.add(version);
+
+        // ── Assemble root ────────────────────────────────────────────────────
+        JPanel centre = new JPanel();
+        centre.setLayout(new BoxLayout(centre, BoxLayout.Y_AXIS));
+        centre.setOpaque(false);
+        centre.add(top);
+        centre.add(mid);
+        centre.add(instrPanel);
+        centre.add(Box.createVerticalGlue());
+        centre.add(bottom);
+
+        root.add(centre, BorderLayout.CENTER);
+        return root;
+    }
+
+    /** Builds a small team-member card (name + roll number). */
+    private JPanel teamCard(String name, String roll) {
+        JPanel card = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(BG_CARD);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
+                g2.setColor(new Color(37, 99, 235, 60));
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 12, 12);
+            }
+        };
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setOpaque(false);
+        card.setBorder(new EmptyBorder(10, 18, 10, 18));
+        card.setPreferredSize(new Dimension(220, 62));
+
+        JLabel nameLbl = new JLabel(name, SwingConstants.CENTER);
+        nameLbl.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        nameLbl.setForeground(TEXT_WHITE);
+        nameLbl.setAlignmentX(CENTER_ALIGNMENT);
+
+        JLabel rollLbl = new JLabel("Roll: " + roll, SwingConstants.CENTER);
+        rollLbl.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        rollLbl.setForeground(TEXT_MUTED);
+        rollLbl.setAlignmentX(CENTER_ALIGNMENT);
+
+        card.add(nameLbl);
+        card.add(Box.createVerticalStrut(3));
+        card.add(rollLbl);
+        return card;
+    }
+}
