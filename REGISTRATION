@@ -1,4 +1,4 @@
-//  REGISTERATION SCREEN
+//  REGISTRATION SCREEN
     // ══════════════════════════════════════════════════════════════════════
  
     JPanel buildRegisterScreen() {
@@ -94,7 +94,7 @@
                 mainPanel.add(buildCustomerDashboard(c), "CUSTOMER_DASH");
                 cardLayout.show(mainPanel, "CUSTOMER_DASH");
             } 
-else {
+         else {
                 ServiceProvider p = new ServiceProvider(id, name, email, pass, phone, extra);
                 db.addProvider(p);
                 currentUser = p;
@@ -105,6 +105,6 @@ else {
  
         backBtn.addActionListener(e -> cardLayout.show(mainPanel, "LOGIN"));
         root.add(form);
-        return root;
+        return root; 
     }
  
