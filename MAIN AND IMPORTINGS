@@ -44,6 +44,6 @@ public class MainGUI extends JFrame {
         mainPanel.add(buildRegisterScreen(), "REGISTER");
  
         add(mainPanel);
-        cardLayout.show(mainPanel, "LOGIN");
+          cardLayout.show(mainPanel, "LOGIN");
         setVisible(true);
     }
