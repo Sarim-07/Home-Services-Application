@@ -35,5 +35,6 @@ public class Admin extends User {
     /** Force-cancel any booking regardless of status */
     public void forceCancel(Booking b) {
         b.setStatus("Cancelled");
+
     }
 }
