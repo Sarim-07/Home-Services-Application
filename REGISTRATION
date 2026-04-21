@@ -1,5 +1,5 @@
-//  REGISTER SCREEN
-    // ═══════════════════════════════════════════════════════════════════════
+//  REGISTERATION SCREEN
+    // ══════════════════════════════════════════════════════════════════════
  
     JPanel buildRegisterScreen() {
         JPanel root = new JPanel(new GridBagLayout());
@@ -48,7 +48,7 @@
         backBtn.setBorderPainted(false); backBtn.setContentAreaFilled(false);
         backBtn.setForeground(PRIMARY); backBtn.setFont(new Font("Segoe UI", Font.BOLD, 13));
         backBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        backBtn.setAlignmentX(LEFT_ALIGNMENT);
+        backBtn.setAlignmentX(LEFT_ALIGNMENT); 
  
         form.add(title); form.add(Box.createVerticalStrut(4)); form.add(sub);
         form.add(Box.createVerticalStrut(24));
@@ -93,7 +93,8 @@
                 currentUser = c;
                 mainPanel.add(buildCustomerDashboard(c), "CUSTOMER_DASH");
                 cardLayout.show(mainPanel, "CUSTOMER_DASH");
-            } else {
+            } 
+else {
                 ServiceProvider p = new ServiceProvider(id, name, email, pass, phone, extra);
                 db.addProvider(p);
                 currentUser = p;
