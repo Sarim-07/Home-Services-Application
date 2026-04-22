@@ -1,4 +1,8 @@
                                     # Home-Services-Application
+                        # Team
+                   NAME            CMS                 
+            Muhammad Talal Aqdas  547601
+            Sarim Farooq Khan     542714
  
                                            #Introduction
 We chose to create a home services application. As the name suggests, it will be an app in which services will be provided. You can either use a service or become a service provider yourself.
