@@ -1,7 +1,8 @@
 package homeservicessystem;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.ArrayList;
+
 
 public class ServiceProvider extends User {
     private String specialty;
@@ -56,8 +57,7 @@ public class ServiceProvider extends User {
         if (totalRatings == 0) return "No ratings yet";
         return String.format("%.1f ★ (%d reviews)", rating, totalRatings);
     }
-
-    public List<Booking> getPendingBookings() {
+            public List<Booking> getPendingBookings() {
         List<Booking> pending = new ArrayList<>();
         for (Booking b : assignedBookings) {
             if (b.getStatus().equals("Pending")) pending.add(b);
@@ -65,3 +65,5 @@ public class ServiceProvider extends User {
         return pending;
     }
 }
+
+
