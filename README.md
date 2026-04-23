@@ -74,3 +74,30 @@ Apart from solving a real-life problem, this project is also a way to practice t
 
 6.There is also a screen, for analytics that has a bar chart showing how much money is being made from each service category and a chart showing which providers are doing the best.
 
+                               #OOP Concepts Applied
+                               
+       Concept                     Where It's Used
+       
+     1.  Abstraction          User is an abstract class — you can't instantiate it directly, 
+                              only Customer, ServiceProvider, and Admin
+                              
+     2.  Inheritance          Customer, ServiceProvider, and Admin all extend User and inherit 
+                              common fields like name, email, and password
+                              
+     3.  Polymorphism         db.login() returns a User reference that could be a Customer, ServiceProvider,
+                              or Admin — the correct dashboard is shown based on the actual type
+     
+     4.  Encapsulation        All fields across every class are private with controlled access through
+                              getters and setters
+     
+     5. Singleton             PatternDataStore and NotificationManager use the Singleton pattern. only one 
+                              instance exists throughout the app
+     
+    6. Observer Pattern       NotificationManager uses a BadgeListener interface to update notification badges
+                              in real time across the UI
+                              
+    7. Composition            Customer contains a list of Booking objects; ServiceProvider contains lists of Booking
+                              and Service objects
+                              
+
+       
