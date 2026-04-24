@@ -1,0 +1,52 @@
+//
+// Source code recreated from a .class file by IntelliJ IDEA
+// (powered by Fernflower decompiler)
+//
+
+package homeservicessystem;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class Customer extends User {
+    private String address;
+    private List<Booking> bookingHistory;
+
+    public Customer(String userId, String name, String email, String password, String phone, String address) {
+        super(userId, name, email, password, phone);
+        this.address = address;
+        this.bookingHistory = new ArrayList();
+    }
+
+    public String getUserType() {
+        return "Customer";
+    }
+
+    public String getAddress() {
+        return this.address;
+    }
+
+    public void setAddress(String address) {
+        this.address = address;
+    }
+
+    public List<Booking> getBookingHistory() {
+        return this.bookingHistory;
+    }
+
+    public void addBooking(Booking booking) {
+        this.bookingHistory.add(booking);
+    }
+
+    public List<Booking> getActiveBookings() {
+        List<Booking> active = new ArrayList();
+
+        for(Booking b : this.bookingHistory) {
+            if (!b.getStatus().equals("Completed") && !b.getStatus().equals("Cancelled")) {
+                active.add(b);
+            }
+        }
+
+        return active;
+    }
+}
