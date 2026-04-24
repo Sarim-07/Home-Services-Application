@@ -1,0 +1,208 @@
+//
+// Source code recreated from a .class file by IntelliJ IDEA
+// (powered by Fernflower decompiler)
+//
+
+package homeservicessystem;
+
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+
+public class NotificationManager {
+    private static NotificationManager instance;
+    private final List<Notification> notifications = new ArrayList();
+    private final List<BadgeListener> listeners = new ArrayList();
+
+    public NotificationManager() {
+    }
+
+    public static NotificationManager getInstance() {
+        if (instance == null) {
+            instance = new NotificationManager();
+        }
+
+        return instance;
+    }
+
+    public void addBadgeListener(BadgeListener l) {
+        this.listeners.add(l);
+    }
+
+    public void removeBadgeListener(BadgeListener l) {
+        this.listeners.remove(l);
+    }
+
+    private void notifyListeners(String userId) {
+        int count = this.getUnreadCount(userId);
+
+        for(BadgeListener l : this.listeners) {
+            l.onBadgeChanged(userId, count);
+        }
+
+    }
+
+    public void notifyBookingAccepted(Booking b) {
+        String var10003 = b.getCustomerId();
+        Notification.Type var10004 = NotificationManager.Notification.Type.BOOKING_ACCEPTED;
+        String var10006 = b.getProviderName();
+        this.push(new Notification(var10003, var10004, "Booking Accepted!", var10006 + " accepted your booking for \"" + b.getServiceName() + "\"."));
+    }
+
+    public void notifyBookingRejected(Booking b) {
+        String var10003 = b.getCustomerId();
+        Notification.Type var10004 = NotificationManager.Notification.Type.BOOKING_REJECTED;
+        String var10006 = b.getProviderName();
+        this.push(new Notification(var10003, var10004, "Booking Rejected", var10006 + " could not accept your \"" + b.getServiceName() + "\" booking."));
+    }
+
+    public void notifyNewRequest(Booking b) {
+        String var10003 = b.getProviderId();
+        Notification.Type var10004 = NotificationManager.Notification.Type.NEW_REQUEST;
+        String var10006 = b.getCustomerName();
+        this.push(new Notification(var10003, var10004, "New Booking Request", var10006 + " booked \"" + b.getServiceName() + "\" for " + b.getFormattedDateTime() + "."));
+    }
+
+    public void notifyBookingCancelled(Booking b) {
+        String var10003 = b.getProviderId();
+        Notification.Type var10004 = NotificationManager.Notification.Type.BOOKING_CANCELLED;
+        String var10006 = b.getCustomerName();
+        this.push(new Notification(var10003, var10004, "Booking Cancelled", var10006 + " cancelled their \"" + b.getServiceName() + "\" booking."));
+    }
+
+    public void notifyBookingCompleted(Booking b) {
+        String var10003 = b.getCustomerId();
+        Notification.Type var10004 = NotificationManager.Notification.Type.BOOKING_COMPLETED;
+        String var10006 = b.getServiceName();
+        this.push(new Notification(var10003, var10004, "Service Completed", var10006 + " by " + b.getProviderName() + " is marked complete. Please leave a rating!"));
+    }
+
+    private void push(Notification n) {
+        this.notifications.add(0, n);
+        this.notifyListeners(n.recipientId);
+    }
+
+    public List<Notification> getFor(String userId) {
+        List<Notification> result = new ArrayList();
+
+        for(Notification n : this.notifications) {
+            if (n.recipientId.equals(userId)) {
+                result.add(n);
+            }
+        }
+
+        return result;
+    }
+
+    public int getUnreadCount(String userId) {
+        int count = 0;
+
+        for(Notification n : this.notifications) {
+            if (n.recipientId.equals(userId) && !n.read) {
+                ++count;
+            }
+        }
+
+        return count;
+    }
+
+    public void markAllRead(String userId) {
+        for(Notification n : this.notifications) {
+            if (n.recipientId.equals(userId)) {
+                n.read = true;
+            }
+        }
+
+        this.notifyListeners(userId);
+    }
+
+    public void markRead(int notificationId, String userId) {
+        for(Notification n : this.notifications) {
+            if (n.id == notificationId) {
+                n.read = true;
+                break;
+            }
+        }
+
+        this.notifyListeners(userId);
+    }
+
+    public void clearAll(String userId) {
+        this.notifications.removeIf((n) -> n.recipientId.equals(userId));
+        this.notifyListeners(userId);
+    }
+
+    public static class Notification {
+        private static int counter = 1;
+        public final int id;
+        public final String recipientId;
+        public final Type type;
+        public final String title;
+        public final String body;
+        public final LocalDateTime createdAt;
+        public boolean read;
+
+        public Notification(String recipientId, Type type, String title, String body) {
+            this.id = counter++;
+            this.recipientId = recipientId;
+            this.type = type;
+            this.title = title;
+            this.body = body;
+            this.createdAt = LocalDateTime.now();
+            this.read = false;
+        }
+
+        public String getFormattedTime() {
+            LocalDateTime now = LocalDateTime.now();
+            long minutes = Duration.between(this.createdAt, now).toMinutes();
+            if (minutes < 1L) {
+                return "Just now";
+            } else if (minutes < 60L) {
+                return minutes + "m ago";
+            } else {
+                long hours = minutes / 60L;
+                return hours < 24L ? hours + "h ago" : this.createdAt.format(DateTimeFormatter.ofPattern("dd MMM"));
+            }
+        }
+
+        public String getIcon() {
+            switch (this.type) {
+                case BOOKING_ACCEPTED -> {
+                    return "✅";
+                }
+                case BOOKING_REJECTED -> {
+                    return "❌";
+                }
+                case NEW_REQUEST -> {
+                    return "\ud83d\udd14";
+                }
+                case BOOKING_CANCELLED -> {
+                    return "⚠️";
+                }
+                case BOOKING_COMPLETED -> {
+                    return "\ud83c\udfc6";
+                }
+                default -> {
+                    return "\ud83d\udccc";
+                }
+            }
+        }
+
+        public static enum Type {
+            BOOKING_ACCEPTED,
+            BOOKING_REJECTED,
+            NEW_REQUEST,
+            BOOKING_CANCELLED,
+            BOOKING_COMPLETED;
+
+            private Type() {
+            }
+        }
+    }
+
+    public interface BadgeListener {
+        void onBadgeChanged(String var1, int var2);
+    }
+}
