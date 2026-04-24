@@ -1,0 +1,108 @@
+//
+// Source code recreated from a .class file by IntelliJ IDEA
+// (powered by Fernflower decompiler)
+//
+
+package homeservicessystem;
+
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
+public class Booking {
+    private String bookingId;
+    private String customerId;
+    private String providerId;
+    private String serviceId;
+    private LocalDateTime bookingDateTime;
+    private String status;
+    private String notes;
+    private int rating;
+    private String customerName;
+    private String providerName;
+    private String serviceName;
+    private double totalPrice;
+    private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a");
+
+    public Booking(String bookingId, String customerId, String providerId, String serviceId, LocalDateTime bookingDateTime, String notes, String customerName, String providerName, String serviceName, double totalPrice) {
+        this.bookingId = bookingId;
+        this.customerId = customerId;
+        this.providerId = providerId;
+        this.serviceId = serviceId;
+        this.bookingDateTime = bookingDateTime;
+        this.status = "Pending";
+        this.notes = notes;
+        this.rating = 0;
+        this.customerName = customerName;
+        this.providerName = providerName;
+        this.serviceName = serviceName;
+        this.totalPrice = totalPrice;
+    }
+
+    public String getBookingId() {
+        return this.bookingId;
+    }
+
+    public String getCustomerId() {
+        return this.customerId;
+    }
+
+    public String getProviderId() {
+        return this.providerId;
+    }
+
+    public String getServiceId() {
+        return this.serviceId;
+    }
+
+    public LocalDateTime getBookingDateTime() {
+        return this.bookingDateTime;
+    }
+
+    public String getStatus() {
+        return this.status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public String getNotes() {
+        return this.notes;
+    }
+
+    public int getRating() {
+        return this.rating;
+    }
+
+    public void setRating(int rating) {
+        this.rating = rating;
+    }
+
+    public String getCustomerName() {
+        return this.customerName;
+    }
+
+    public String getProviderName() {
+        return this.providerName;
+    }
+
+    public String getServiceName() {
+        return this.serviceName;
+    }
+
+    public double getTotalPrice() {
+        return this.totalPrice;
+    }
+
+    public String getFormattedDateTime() {
+        return this.bookingDateTime.format(FORMATTER);
+    }
+
+    public String getFormattedPrice() {
+        return String.format("PKR %.0f", this.totalPrice);
+    }
+
+    public String toString() {
+        return this.bookingId + " | " + this.serviceName + " | " + this.status;
+    }
+}
