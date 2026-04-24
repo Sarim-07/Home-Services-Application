@@ -1,0 +1,125 @@
+//
+// Source code recreated from a .class file by IntelliJ IDEA
+// (powered by Fernflower decompiler)
+//
+
+package homeservicessystem;
+
+import java.awt.BasicStroke;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.GradientPaint;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GridBagLayout;
+import java.awt.RenderingHints;
+import java.awt.event.ActionListener;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JWindow;
+import javax.swing.SwingUtilities;
+import javax.swing.Timer;
+import javax.swing.border.EmptyBorder;
+
+public class SplashScreen extends JWindow {
+    private static final Color BG_DARK = new Color(15, 23, 42);
+    private static final Color BG_CARD = new Color(22, 33, 56);
+    private static final Color ACCENT = new Color(37, 99, 235);
+    private static final Color ACCENT2 = new Color(99, 102, 241);
+    private static final Color TEXT_WHITE;
+    private static final Color TEXT_MUTED;
+    private static final Color TEXT_DIM;
+    private static final Color SUCCESS;
+    private static final Color BAR_TRACK;
+    private static final String[] STEPS;
+    private int progress = 0;
+    private int stepIndex = 0;
+    private int dotFrame = 0;
+    private boolean done = false;
+    private JLabel stepLabel;
+    private JLabel pctLabel;
+    private JPanel barFill;
+    private JLabel dotLabel;
+    private static final int W = 620;
+    private static final int H = 380;
+
+    public SplashScreen() {
+        this.setSize(620, 380);
+        this.setLocationRelativeTo((Component)null);
+        JPanel root = this.buildUI();
+        this.add(root);
+        this.setVisible(true);
+        Timer progressTimer = new Timer(30, (ActionListener)null);
+        progressTimer.addActionListener((e) -> {
+            if (!this.done) {
+                int increment = this.progress >= 20 && this.progress <= 85 ? 2 : 1;
+                this.progress = Math.min(100, this.progress + increment);
+                int fillW = (int)((double)this.progress / (double)100.0F * (double)540.0F);
+                this.barFill.setPreferredSize(new Dimension(fillW, 8));
+                this.barFill.revalidate();
+                this.pctLabel.setText(this.progress + "%");
+                int[] thresholds = new int[]{0, 18, 36, 54, 72, 90};
+
+                for(int i = thresholds.length - 1; i >= 0; --i) {
+                    if (this.progress >= thresholds[i] && this.stepIndex < i + 1) {
+                        this.stepIndex = i + 1 <= STEPS.length ? i + 1 : STEPS.length - 1;
+                        this.stepLabel.setText(STEPS[Math.min(this.stepIndex, STEPS.length - 1)]);
+                        if (this.stepIndex < STEPS.length) {
+                            this.stepLabel.setForeground(TEXT_MUTED);
+                        }
+                        break;
+                    }
+                }
+
+                if (this.progress >= 100 && !this.done) {
+                    this.done = true;
+                    progressTimer.stop();
+                    this.stepLabel.setText("Ready!");
+                    this.stepLabel.setForeground(SUCCESS);
+                    this.pctLabel.setForeground(SUCCESS);
+                    this.dotLabel.setForeground(SUCCESS);
+                    this.dotLabel.setText("✓");
+                    Timer openTimer = new Timer(400, (ev) -> {
+                        this.dispose();
+                        SwingUtilities.invokeLater(MainGUI::new);
+                    });
+                    openTimer.setRepeats(false);
+                    openTimer.start();
+                }
+
+            }
+        });
+        Timer dotTimer = new Timer(400, (e) -> {
+            if (!this.done) {
+                String[] dots = new String[]{"●○○", "○●○", "○○●"};
+                this.dotLabel.setText(dots[this.dotFrame % 3]);
+                ++this.dotFrame;
+            }
+        });
+        progressTimer.start();
+        dotTimer.start();
+    }
+
+    private JPanel buildUI() {
+        // $FF: Couldn't be decompiled
+    }
+
+    private JPanel teamCard(String name, String roll) {
+        // $FF: Couldn't be decompiled
+    }
+
+    static {
+        TEXT_WHITE = Color.WHITE;
+        TEXT_MUTED = new Color(148, 163, 184);
+        TEXT_DIM = new Color(71, 85, 105);
+        SUCCESS = new Color(34, 197, 94);
+        BAR_TRACK = new Color(30, 41, 59);
+        STEPS = new String[]{"Initialising system...", "Loading service catalogue...", "Connecting data store...", "Restoring saved data...", "Preparing user interface...", "Almost ready..."};
+    }
+}
