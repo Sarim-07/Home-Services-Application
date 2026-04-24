@@ -1,0 +1,35 @@
+//
+// Source code recreated from a .class file by IntelliJ IDEA
+// (powered by Fernflower decompiler)
+//
+
+package homeservicessystem;
+
+public class Admin extends User {
+    private boolean superAdmin;
+
+    public Admin(String userId, String name, String email, String password, String phone, boolean superAdmin) {
+        super(userId, name, email, password, phone);
+        this.superAdmin = superAdmin;
+    }
+
+    public String getUserType() {
+        return "Admin";
+    }
+
+    public boolean isSuperAdmin() {
+        return this.superAdmin;
+    }
+
+    public void suspendProvider(ServiceProvider p) {
+        p.setAvailable(false);
+    }
+
+    public void reinstateProvider(ServiceProvider p) {
+        p.setAvailable(true);
+    }
+
+    public void forceCancel(Booking b) {
+        b.setStatus("Cancelled");
+    }
+}
