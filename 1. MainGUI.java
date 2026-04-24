@@ -1,0 +1,1700 @@
+package homeservicessystem;
+
+import javax.swing.*;
+import javax.swing.border.*;
+import javax.swing.table.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.time.LocalDateTime;
+import java.util.List;
+
+public class MainGUI extends JFrame {
+
+    // ── COLORS ──────────────────────────────────────────────────────────────
+    static final Color PRIMARY    = new Color(37, 99, 235);   // blue
+    static final Color PRIMARY_DARK = new Color(29, 78, 216);
+    static final Color SUCCESS    = new Color(22, 163, 74);
+    static final Color DANGER     = new Color(220, 38, 38);
+    static final Color WARNING    = new Color(217, 119, 6);
+    static final Color BG         = new Color(248, 250, 252);
+    static final Color CARD_BG    = Color.WHITE;
+    static final Color BORDER     = new Color(226, 232, 240);
+    static final Color TEXT_DARK  = new Color(15, 23, 42);
+    static final Color TEXT_MUTED = new Color(100, 116, 139);
+    static final Color SIDEBAR_BG = new Color(15, 23, 42);
+    static final Color SIDEBAR_ACTIVE = new Color(37, 99, 235);
+    static final Color BADGE_RED    = new Color(239, 68, 68);
+
+    private DataStore db = DataStore.getInstance();
+    private NotificationManager nm = NotificationManager.getInstance();
+    private User currentUser;
+    private CardLayout cardLayout;
+    private JPanel mainPanel;
+
+    public MainGUI() {
+        setTitle("Home Services Management System");
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setMinimumSize(new Dimension(1100, 700));
+        setLocationRelativeTo(null);
+        setBackground(BG);
+
+        cardLayout = new CardLayout();
+        mainPanel = new JPanel(cardLayout);
+        mainPanel.setBackground(BG);
+
+        mainPanel.add(buildLoginScreen(), "LOGIN");
+        mainPanel.add(buildRegisterScreen(), "REGISTER");
+
+        add(mainPanel);
+        cardLayout.show(mainPanel, "LOGIN");
+        setVisible(true);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  HELPERS
+    // ═══════════════════════════════════════════════════════════════════════
+
+    static JButton primaryButton(String text) {
+        JButton btn = new JButton(text);
+        btn.setBackground(PRIMARY);
+        btn.setForeground(Color.WHITE);
+        btn.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        btn.setBorder(new EmptyBorder(10, 24, 10, 24));
+        btn.setFocusPainted(false);
+        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btn.addMouseListener(new MouseAdapter() {
+            public void mouseEntered(MouseEvent e) { btn.setBackground(PRIMARY_DARK); }
+            public void mouseExited(MouseEvent e)  { btn.setBackground(PRIMARY); }
+        });
+        return btn;
+    }
+
+    static JButton outlineButton(String text, Color color) {
+        JButton btn = new JButton(text);
+        btn.setBackground(Color.WHITE);
+        btn.setForeground(color);
+        btn.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        btn.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(color, 1, true),
+                new EmptyBorder(7, 16, 7, 16)));
+        btn.setFocusPainted(false);
+        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        return btn;
+    }
+
+    static JPanel card(int padding) {
+        JPanel p = new JPanel();
+        p.setBackground(CARD_BG);
+        p.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(BORDER, 1, true),
+                new EmptyBorder(padding, padding, padding, padding)));
+        return p;
+    }
+
+    static JLabel label(String text, int size, boolean bold, Color color) {
+        JLabel l = new JLabel(text);
+        l.setFont(new Font("Segoe UI", bold ? Font.BOLD : Font.PLAIN, size));
+        l.setForeground(color);
+        return l;
+    }
+
+    static JTextField styledField(String placeholder, int cols) {
+        JTextField f = new JTextField(cols) {
+            public void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                if (getText().isEmpty() && !isFocusOwner()) {
+                    g.setColor(new Color(148, 163, 184));
+                    g.setFont(getFont().deriveFont(Font.ITALIC));
+                    g.drawString(placeholder, 10, 20);
+                }
+            }
+        };
+        f.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        f.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(BORDER, 1, true),
+                new EmptyBorder(8, 10, 8, 10)));
+        f.setBackground(Color.WHITE);
+        return f;
+    }
+
+    static JPasswordField styledPasswordField(int cols) {
+        JPasswordField f = new JPasswordField(cols);
+        f.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        f.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(BORDER, 1, true),
+                new EmptyBorder(8, 10, 8, 10)));
+        return f;
+    }
+
+    static JLabel statusBadge(String status) {
+        Color bg, fg;
+        switch (status) {
+            case "Accepted":  bg = new Color(220,252,231); fg = new Color(22,101,52);   break;
+            case "Pending":   bg = new Color(254,243,199); fg = new Color(146,64,14);   break;
+            case "Rejected":  bg = new Color(254,226,226); fg = new Color(153,27,27);   break;
+            case "Completed": bg = new Color(219,234,254); fg = new Color(30,64,175);   break;
+            default:          bg = new Color(241,245,249); fg = new Color(71,85,105);   break;
+        }
+        JLabel l = new JLabel(" " + status + " ");
+        l.setOpaque(true);
+        l.setBackground(bg);
+        l.setForeground(fg);
+        l.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        l.setBorder(new EmptyBorder(3, 8, 3, 8));
+        return l;
+    }
+
+    void showMessage(String msg, String title, int type) {
+        JOptionPane.showMessageDialog(this, msg, title, type);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  LOGIN SCREEN
+    // ═══════════════════════════════════════════════════════════════════════
+
+    JPanel buildLoginScreen() {
+        JPanel root = new JPanel(new BorderLayout());
+        root.setBackground(BG);
+
+        // Left panel - branding
+        JPanel left = new JPanel();
+        left.setBackground(new Color(15, 23, 42));
+        left.setPreferredSize(new Dimension(420, 0));
+        left.setLayout(new BoxLayout(left, BoxLayout.Y_AXIS));
+        left.setBorder(new EmptyBorder(80, 50, 80, 50));
+
+        JLabel logo = label("🏠", 64, false, Color.WHITE);
+        logo.setAlignmentX(Component.CENTER_ALIGNMENT);
+        logo.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 64));
+
+        JLabel title = label("Home Services", 28, true, Color.WHITE);
+        title.setAlignmentX(Component.CENTER_ALIGNMENT);
+        JLabel subtitle = label("Management System", 20, false, new Color(148, 163, 184));
+        subtitle.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        JLabel desc = label("<html><center>Your one-stop solution for booking<br>home services — fast, easy, reliable.</center></html>",
+                14, false, new Color(100, 116, 139));
+        desc.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        left.add(Box.createVerticalGlue());
+        left.add(logo);
+        left.add(Box.createVerticalStrut(20));
+        left.add(title);
+        left.add(Box.createVerticalStrut(4));
+        left.add(subtitle);
+        left.add(Box.createVerticalStrut(30));
+        left.add(desc);
+        left.add(Box.createVerticalGlue());
+
+        // Stats
+        JPanel stats = new JPanel(new FlowLayout(FlowLayout.CENTER, 30, 0));
+        stats.setBackground(new Color(15, 23, 42));
+        String[][] st = {{"8+", "Services"}, {"4", "Providers"}, {"2", "Customers"}};
+        for (String[] s : st) {
+            JPanel box = new JPanel(); box.setLayout(new BoxLayout(box, BoxLayout.Y_AXIS));
+            box.setBackground(new Color(30, 41, 59));
+            box.setBorder(new EmptyBorder(12, 20, 12, 20));
+            JLabel num = label(s[0], 22, true, Color.WHITE); num.setAlignmentX(CENTER_ALIGNMENT);
+            JLabel lbl = label(s[1], 11, false, new Color(148,163,184)); lbl.setAlignmentX(CENTER_ALIGNMENT);
+            box.add(num); box.add(lbl);
+            stats.add(box);
+        }
+        left.add(stats);
+        left.add(Box.createVerticalGlue());
+
+        // Right panel - login form
+        JPanel right = new JPanel(new GridBagLayout());
+        right.setBackground(BG);
+
+        JPanel form = card(40);
+        form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
+        form.setPreferredSize(new Dimension(400, 480));
+
+        JLabel formTitle = label("Welcome Back", 26, true, TEXT_DARK);
+        formTitle.setAlignmentX(LEFT_ALIGNMENT);
+        JLabel formSub = label("Sign in to your account", 14, false, TEXT_MUTED);
+        formSub.setAlignmentX(LEFT_ALIGNMENT);
+
+        JTextField emailField = styledField("Email address", 20);
+        JPasswordField passField = styledPasswordField(20);
+        emailField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+        passField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+        emailField.setAlignmentX(LEFT_ALIGNMENT);
+        passField.setAlignmentX(LEFT_ALIGNMENT);
+
+        JButton loginBtn = primaryButton("Sign In");
+        loginBtn.setAlignmentX(LEFT_ALIGNMENT);
+        loginBtn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
+
+        JLabel hint = label("<html><small>Customer: ahmed@gmail.com / 1234&nbsp;&nbsp;&nbsp;Provider: usman@pro.com / 1234<br>Admin: admin@home.com / admin123</small></html>",
+                11, false, TEXT_MUTED);
+        hint.setAlignmentX(LEFT_ALIGNMENT);
+
+        JLabel regLabel = label("Don't have an account? ", 13, false, TEXT_MUTED);
+        JButton regBtn = new JButton("Register");
+        regBtn.setBorderPainted(false); regBtn.setContentAreaFilled(false);
+        regBtn.setForeground(PRIMARY); regBtn.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        regBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        JPanel regRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        regRow.setBackground(CARD_BG); regRow.setAlignmentX(LEFT_ALIGNMENT);
+        regRow.add(regLabel); regRow.add(regBtn);
+
+        form.add(formTitle); form.add(Box.createVerticalStrut(4)); form.add(formSub);
+        form.add(Box.createVerticalStrut(28));
+        form.add(label("Email Address", 13, true, TEXT_DARK)); form.add(Box.createVerticalStrut(6));
+        form.add(emailField); form.add(Box.createVerticalStrut(16));
+        form.add(label("Password", 13, true, TEXT_DARK)); form.add(Box.createVerticalStrut(6));
+        form.add(passField); form.add(Box.createVerticalStrut(24));
+        form.add(loginBtn); form.add(Box.createVerticalStrut(16));
+        form.add(hint); form.add(Box.createVerticalStrut(20));
+        form.add(regRow);
+
+        right.add(form);
+
+        loginBtn.addActionListener(e -> {
+            String email = emailField.getText().trim();
+            String pass = new String(passField.getPassword());
+            if (email.isEmpty() || pass.isEmpty()) {
+                showMessage("Please enter email and password.", "Missing Info", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            User user = db.login(email, pass);
+            if (user == null) {
+                showMessage("Incorrect email or password.", "Login Failed", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            currentUser = user;
+            if (user instanceof Admin) {
+                // Open the dedicated Admin window (separate JFrame)
+                new AdminDashboard((Admin) user);
+                dispose();  // close the login window
+            } else if (user instanceof Customer) {
+                mainPanel.add(buildCustomerDashboard((Customer) user), "CUSTOMER_DASH");
+                cardLayout.show(mainPanel, "CUSTOMER_DASH");
+            } else {
+                mainPanel.add(buildProviderDashboard((ServiceProvider) user), "PROVIDER_DASH");
+                cardLayout.show(mainPanel, "PROVIDER_DASH");
+            }
+        });
+
+        regBtn.addActionListener(e -> cardLayout.show(mainPanel, "REGISTER"));
+
+        root.add(left, BorderLayout.WEST);
+        root.add(right, BorderLayout.CENTER);
+        return root;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  REGISTER SCREEN
+    // ═══════════════════════════════════════════════════════════════════════
+
+    JPanel buildRegisterScreen() {
+        JPanel root = new JPanel(new GridBagLayout());
+        root.setBackground(BG);
+
+        JPanel form = card(36);
+        form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
+        form.setPreferredSize(new Dimension(500, 600));
+
+        JLabel title = label("Create Account", 24, true, TEXT_DARK); title.setAlignmentX(LEFT_ALIGNMENT);
+        JLabel sub = label("Join the Home Services platform", 13, false, TEXT_MUTED); sub.setAlignmentX(LEFT_ALIGNMENT);
+
+        JTextField nameF = styledField("Full name", 20);
+        JTextField emailF = styledField("Email address", 20);
+        JPasswordField passF = styledPasswordField(20);
+        JTextField phoneF = styledField("Phone number (e.g. 0300-1234567)", 20);
+
+        ButtonGroup roleGroup = new ButtonGroup();
+        JRadioButton custRB = new JRadioButton("Customer"); custRB.setSelected(true);
+        JRadioButton provRB = new JRadioButton("Service Provider");
+        custRB.setBackground(CARD_BG); provRB.setBackground(CARD_BG);
+        custRB.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        provRB.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        roleGroup.add(custRB); roleGroup.add(provRB);
+
+        JTextField extraF = styledField("Home address", 20);
+        JLabel extraLbl = label("Home Address", 13, true, TEXT_DARK);
+
+        provRB.addActionListener(e -> { extraLbl.setText("Specialty (e.g. Plumbing, Electrical)"); extraF.setText(""); });
+        custRB.addActionListener(e -> { extraLbl.setText("Home Address"); extraF.setText(""); });
+
+        for (JTextField f : new JTextField[]{nameF, emailF, passF, phoneF, extraF})
+            f.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+        for (JComponent c : new JComponent[]{nameF, emailF, passF, phoneF, extraF})
+            c.setAlignmentX(LEFT_ALIGNMENT);
+
+        JPanel roleRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        roleRow.setBackground(CARD_BG); roleRow.setAlignmentX(LEFT_ALIGNMENT);
+        roleRow.add(label("Role:", 13, true, TEXT_DARK)); roleRow.add(custRB); roleRow.add(provRB);
+
+        JButton regBtn = primaryButton("Create Account");
+        regBtn.setAlignmentX(LEFT_ALIGNMENT);
+        regBtn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
+
+        JButton backBtn = new JButton("← Back to Login");
+        backBtn.setBorderPainted(false); backBtn.setContentAreaFilled(false);
+        backBtn.setForeground(PRIMARY); backBtn.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        backBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        backBtn.setAlignmentX(LEFT_ALIGNMENT);
+
+        form.add(title); form.add(Box.createVerticalStrut(4)); form.add(sub);
+        form.add(Box.createVerticalStrut(24));
+        form.add(label("Full Name", 13, true, TEXT_DARK)); form.add(Box.createVerticalStrut(5)); form.add(nameF);
+        form.add(Box.createVerticalStrut(12));
+        form.add(label("Email", 13, true, TEXT_DARK)); form.add(Box.createVerticalStrut(5)); form.add(emailF);
+        form.add(Box.createVerticalStrut(12));
+        form.add(label("Password", 13, true, TEXT_DARK)); form.add(Box.createVerticalStrut(5)); form.add(passF);
+        form.add(Box.createVerticalStrut(12));
+        form.add(label("Phone", 13, true, TEXT_DARK)); form.add(Box.createVerticalStrut(5)); form.add(phoneF);
+        form.add(Box.createVerticalStrut(12));
+        form.add(roleRow);
+        form.add(Box.createVerticalStrut(12));
+        form.add(extraLbl); form.add(Box.createVerticalStrut(5)); form.add(extraF);
+        form.add(Box.createVerticalStrut(20));
+        form.add(regBtn); form.add(Box.createVerticalStrut(12)); form.add(backBtn);
+
+        regBtn.addActionListener(e -> {
+            String name = nameF.getText().trim();
+            String email = emailF.getText().trim();
+            String pass = new String(passF.getPassword()).trim();
+            String phone = phoneF.getText().trim();
+            String extra = extraF.getText().trim();
+
+            if (name.isEmpty() || email.isEmpty() || pass.isEmpty() || phone.isEmpty() || extra.isEmpty()) {
+                showMessage("Please fill all fields.", "Missing Info", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            if (!email.contains("@")) {
+                showMessage("Please enter a valid email address.", "Invalid Email", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            if (db.emailExists(email)) {
+                showMessage("This email is already registered.", "Email Taken", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            String id = db.generateId();
+            if (custRB.isSelected()) {
+                Customer c = new Customer(id, name, email, pass, phone, extra);
+                db.addCustomer(c);
+                currentUser = c;
+                mainPanel.add(buildCustomerDashboard(c), "CUSTOMER_DASH");
+                cardLayout.show(mainPanel, "CUSTOMER_DASH");
+            } else {
+                ServiceProvider p = new ServiceProvider(id, name, email, pass, phone, extra);
+                db.addProvider(p);
+                currentUser = p;
+                mainPanel.add(buildProviderDashboard(p), "PROVIDER_DASH");
+                cardLayout.show(mainPanel, "PROVIDER_DASH");
+            }
+        });
+
+        backBtn.addActionListener(e -> cardLayout.show(mainPanel, "LOGIN"));
+        root.add(form);
+        return root;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  CUSTOMER DASHBOARD
+    // ═══════════════════════════════════════════════════════════════════════
+
+    JPanel buildCustomerDashboard(Customer customer) {
+        JPanel root = new JPanel(new BorderLayout());
+
+        JPanel sidebar = buildSidebar(customer.getName(), "Customer",
+                new String[]{"\uD83C\uDFE0  Overview", "\uD83D\uDD0D  Book Service",
+                        "\uD83D\uDCCB  My Bookings", "\uD83D\uDD14  Notifications", "\uD83D\uDC64  My Profile"},
+                customer.getUserId());
+
+        CardLayout cl = new CardLayout();
+        JPanel content = new JPanel(cl);
+        content.setBackground(BG);
+
+        content.add(buildCustomerOverview(customer), "OVERVIEW");
+        content.add(buildBookServiceScreen(customer, cl, content), "BOOK");
+        content.add(buildCustomerBookings(customer), "BOOKINGS");
+        content.add(buildNotificationPanel(customer.getUserId()), "NOTIF");
+        content.add(buildProfile(customer), "PROFILE");
+
+        cl.show(content, "OVERVIEW");
+
+        JButton[] navBtns = (JButton[]) sidebar.getClientProperty("navBtns");
+        String[] screens = {"OVERVIEW", "BOOK", "BOOKINGS", "NOTIF", "PROFILE"};
+
+        for (int i = 0; i < navBtns.length - 1; i++) {
+            final String screen = screens[i];
+            final int idx2 = i;
+            navBtns[i].addActionListener(e -> {
+                if (screen.equals("BOOKINGS")) {
+                    content.remove(content.getComponent(2));
+                    content.add(buildCustomerBookings(customer), "BOOKINGS", 2);
+                }
+                if (screen.equals("OVERVIEW")) {
+                    content.remove(content.getComponent(0));
+                    content.add(buildCustomerOverview(customer), "OVERVIEW", 0);
+                }
+                if (screen.equals("NOTIF")) {
+                    content.remove(content.getComponent(3));
+                    content.add(buildNotificationPanel(customer.getUserId()), "NOTIF", 3);
+                    nm.markAllRead(customer.getUserId());
+                }
+                cl.show(content, screen);
+                highlightNav(navBtns, idx2);
+            });
+        }
+        navBtns[navBtns.length - 1].addActionListener(e -> {
+            currentUser = null;
+            cardLayout.show(mainPanel, "LOGIN");
+        });
+
+        root.add(sidebar, BorderLayout.WEST);
+        root.add(content, BorderLayout.CENTER);
+        return root;
+    }
+
+    JPanel buildCustomerOverview(Customer customer) {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(BG);
+        panel.setBorder(new EmptyBorder(30, 30, 30, 30));
+
+        JLabel greeting = label("Good day, " + customer.getName() + "! 👋", 24, true, TEXT_DARK);
+        JLabel sub = label("Here's what's happening with your services", 14, false, TEXT_MUTED);
+        greeting.setAlignmentX(LEFT_ALIGNMENT);
+        sub.setAlignmentX(LEFT_ALIGNMENT);
+
+        // Stats row
+        JPanel statsRow = new JPanel(new GridLayout(1, 3, 16, 0));
+        statsRow.setBackground(BG); statsRow.setAlignmentX(LEFT_ALIGNMENT);
+        statsRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 120));
+
+        int total = customer.getBookingHistory().size();
+        int active = customer.getActiveBookings().size();
+        int completed = (int) customer.getBookingHistory().stream().filter(b -> b.getStatus().equals("Completed")).count();
+
+        statsRow.add(statCard("Total Bookings", String.valueOf(total), new Color(239, 246, 255), PRIMARY));
+        statsRow.add(statCard("Active Bookings", String.valueOf(active), new Color(240, 253, 244), SUCCESS));
+        statsRow.add(statCard("Completed", String.valueOf(completed), new Color(250, 245, 255), new Color(126, 34, 206)));
+
+        // Recent bookings
+        JLabel recTitle = label("Recent Bookings", 17, true, TEXT_DARK);
+        recTitle.setAlignmentX(LEFT_ALIGNMENT);
+
+        JPanel bookList = new JPanel();
+        bookList.setLayout(new BoxLayout(bookList, BoxLayout.Y_AXIS));
+        bookList.setBackground(BG); bookList.setAlignmentX(LEFT_ALIGNMENT);
+
+        List<Booking> history = customer.getBookingHistory();
+        if (history.isEmpty()) {
+            JLabel empty = label("No bookings yet. Go to 'Book Service' to get started!", 14, false, TEXT_MUTED);
+            empty.setAlignmentX(LEFT_ALIGNMENT);
+            bookList.add(empty);
+        } else {
+            for (int i = Math.max(0, history.size() - 3); i < history.size(); i++) {
+                bookList.add(bookingRow(history.get(i)));
+                bookList.add(Box.createVerticalStrut(8));
+            }
+        }
+
+        panel.add(greeting); panel.add(Box.createVerticalStrut(4)); panel.add(sub);
+        panel.add(Box.createVerticalStrut(24));
+        panel.add(statsRow);
+        panel.add(Box.createVerticalStrut(28));
+        panel.add(recTitle);
+        panel.add(Box.createVerticalStrut(12));
+        panel.add(bookList);
+        return panel;
+    }
+
+    JPanel buildBookServiceScreen(Customer customer, CardLayout parentCL, JPanel parentPanel) {
+        JPanel panel = new JPanel(new BorderLayout(0, 0));
+        panel.setBackground(BG);
+
+        // ── Compute price bounds from catalogue ──────────────────────────────
+        List<Service> allSvcs = db.getServices();
+        int globalMin = 0, globalMax = 5000;
+        if (!allSvcs.isEmpty()) {
+            globalMin = (int) allSvcs.stream().mapToDouble(Service::getPrice).min().orElse(0);
+            globalMax = (int) allSvcs.stream().mapToDouble(Service::getPrice).max().orElse(5000);
+        }
+        final int PRICE_MIN = globalMin;
+        final int PRICE_MAX = globalMax;
+
+        // ── Filter state holders (arrays so lambdas can mutate) ──────────────
+        int[] priceRange = {PRICE_MIN, PRICE_MAX};
+        int[] minRating  = {0};   // 0 = any
+
+        // ══════════════════════════════════════════════════════════════════════
+        //  FILTER HEADER PANEL (two rows)
+        // ══════════════════════════════════════════════════════════════════════
+        JPanel header = new JPanel();
+        header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
+        header.setBackground(CARD_BG);
+        header.setBorder(BorderFactory.createCompoundBorder(
+                new MatteBorder(0, 0, 1, 0, BORDER),
+                new EmptyBorder(16, 24, 12, 24)));
+
+        // ── Row 1: Title + Search + Category + Sort ──────────────────────────
+        JPanel row1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        row1.setBackground(CARD_BG);
+        row1.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
+        row1.setAlignmentX(LEFT_ALIGNMENT);
+
+        JLabel pageTitle = label("Book a Service", 20, true, TEXT_DARK);
+
+        JTextField searchField = styledField("Search by name or description...", 18);
+        searchField.setPreferredSize(new Dimension(240, 36));
+        searchField.setMaximumSize(new Dimension(240, 36));
+
+        String[] cats = {"All Categories", "Plumbing", "Electrical", "Cleaning", "AC Repair"};
+        JComboBox<String> catBox = new JComboBox<>(cats);
+        catBox.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        catBox.setPreferredSize(new Dimension(160, 36));
+
+        String[] sortOpts = {"Sort: Default", "Price: Low to High", "Price: High to Low",
+                "Rating: Best First", "Duration: Shortest"};
+        JComboBox<String> sortBox = new JComboBox<>(sortOpts);
+        sortBox.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        sortBox.setPreferredSize(new Dimension(180, 36));
+
+        // Results count label (updated by refreshGrid)
+        JLabel resultsLbl = label("", 12, false, TEXT_MUTED);
+
+        row1.add(pageTitle);
+        row1.add(Box.createHorizontalStrut(16));
+        row1.add(searchField);
+        row1.add(catBox);
+        row1.add(sortBox);
+        row1.add(Box.createHorizontalStrut(8));
+        row1.add(resultsLbl);
+
+        // ── Row 2: Price range slider + Rating chips + Clear ─────────────────
+        JPanel row2 = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 4));
+        row2.setBackground(CARD_BG);
+        row2.setAlignmentX(LEFT_ALIGNMENT);
+
+        row2.add(label("Price:", 12, true, TEXT_MUTED));
+
+        // Min price slider
+        JSlider minSlider = new JSlider(PRICE_MIN, PRICE_MAX, PRICE_MIN);
+        minSlider.setPreferredSize(new Dimension(130, 28));
+        minSlider.setBackground(CARD_BG);
+        minSlider.setFocusable(false);
+
+        JLabel minLbl = label("PKR " + PRICE_MIN, 12, false, TEXT_DARK);
+        minLbl.setPreferredSize(new Dimension(72, 20));
+
+        row2.add(minSlider);
+        row2.add(label("—", 12, false, TEXT_MUTED));
+
+        // Max price slider
+        JSlider maxSlider = new JSlider(PRICE_MIN, PRICE_MAX, PRICE_MAX);
+        maxSlider.setPreferredSize(new Dimension(130, 28));
+        maxSlider.setBackground(CARD_BG);
+        maxSlider.setFocusable(false);
+
+        JLabel maxLbl = label("PKR " + PRICE_MAX, 12, false, TEXT_DARK);
+        maxLbl.setPreferredSize(new Dimension(72, 20));
+
+        row2.add(maxSlider);
+        row2.add(minLbl);
+        row2.add(maxLbl);
+        row2.add(Box.createHorizontalStrut(12));
+
+        // Rating chips: Any / 3★+ / 4★+ / 4.5★+
+        row2.add(label("Min rating:", 12, true, TEXT_MUTED));
+        String[] ratingLabels = {"Any", "3★+", "4★+", "4.5★+"};
+        double[] ratingVals   = {0,     3.0,   4.0,   4.5};
+        JButton[] ratingChips = new JButton[ratingLabels.length];
+
+        for (int i = 0; i < ratingLabels.length; i++) {
+            final int idx = i;
+            JButton chip = new JButton(ratingLabels[i]);
+            chip.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            chip.setFocusPainted(false);
+            chip.setCursor(new Cursor(Cursor.HAND_CURSOR));
+            chip.setPreferredSize(new Dimension(54, 28));
+            // Style: first chip starts active (Any)
+            styleChip(chip, i == 0);
+            ratingChips[i] = chip;
+            row2.add(chip);
+        }
+
+        // Clear filters button
+        JButton clearBtn = outlineButton("✕ Clear", TEXT_MUTED);
+        clearBtn.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        clearBtn.setPreferredSize(new Dimension(72, 28));
+        row2.add(Box.createHorizontalStrut(8));
+        row2.add(clearBtn);
+
+        header.add(row1);
+        header.add(Box.createVerticalStrut(8));
+        header.add(row2);
+
+        // ══════════════════════════════════════════════════════════════════════
+        //  SERVICE GRID
+        // ══════════════════════════════════════════════════════════════════════
+        JPanel grid = new JPanel(new GridLayout(0, 2, 16, 16));
+        grid.setBackground(BG);
+        grid.setBorder(new EmptyBorder(16, 24, 24, 24));
+
+        JScrollPane scroll = new JScrollPane(grid);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        scroll.getVerticalScrollBar().setUnitIncrement(20);
+        scroll.setBackground(BG);
+        scroll.getViewport().setBackground(BG);
+
+        // ══════════════════════════════════════════════════════════════════════
+        //  REFRESH LOGIC
+        // ══════════════════════════════════════════════════════════════════════
+        Runnable refreshGrid = () -> {
+            grid.removeAll();
+
+            String cat    = (String) catBox.getSelectedItem();
+            String search = searchField.getText().toLowerCase().trim();
+            int    sortIdx = sortBox.getSelectedIndex();
+            int    pMin   = priceRange[0];
+            int    pMax   = priceRange[1];
+            double rMin   = ratingVals[minRating[0]];
+
+            // 1. Get by category
+            List<Service> filtered = db.getServicesByCategory(
+                    cat.equals("All Categories") ? "All" : cat);
+
+            // 2. Text search
+            if (!search.isEmpty()) {
+                filtered.removeIf(s ->
+                        !s.getName().toLowerCase().contains(search) &&
+                                !s.getDescription().toLowerCase().contains(search) &&
+                                !s.getCategory().toLowerCase().contains(search));
+            }
+
+            // 3. Price range
+            filtered.removeIf(s -> s.getPrice() < pMin || s.getPrice() > pMax);
+
+            // 4. Rating filter
+            if (rMin > 0) {
+                filtered.removeIf(s -> {
+                    ServiceProvider p = db.getProviderById(s.getProviderId());
+                    return p == null || p.getTotalRatings() == 0 || p.getRating() < rMin;
+                });
+            }
+
+            // 5. Sort
+            switch (sortIdx) {
+                case 1: filtered.sort((a, b) -> Double.compare(a.getPrice(), b.getPrice())); break;
+                case 2: filtered.sort((a, b) -> Double.compare(b.getPrice(), a.getPrice())); break;
+                case 3: filtered.sort((a, b) -> {
+                    ServiceProvider pa = db.getProviderById(a.getProviderId());
+                    ServiceProvider pb = db.getProviderById(b.getProviderId());
+                    double ra = (pa != null && pa.getTotalRatings() > 0) ? pa.getRating() : 0;
+                    double rb = (pb != null && pb.getTotalRatings() > 0) ? pb.getRating() : 0;
+                    return Double.compare(rb, ra);
+                }); break;
+                case 4: filtered.sort((a, b) -> Integer.compare(a.getDurationMinutes(), b.getDurationMinutes())); break;
+            }
+
+            // 6. Populate grid
+            if (filtered.isEmpty()) {
+                JPanel emptyState = new JPanel(new GridBagLayout());
+                emptyState.setBackground(BG);
+                JPanel emptyCard = card(32);
+                emptyCard.setLayout(new BoxLayout(emptyCard, BoxLayout.Y_AXIS));
+                JLabel ico = label("🔍", 36, false, TEXT_MUTED);
+                ico.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 36));
+                ico.setAlignmentX(CENTER_ALIGNMENT);
+                JLabel msg = label("No services match your filters", 15, true, TEXT_DARK);
+                msg.setAlignmentX(CENTER_ALIGNMENT);
+                JLabel hint = label("Try adjusting the price range or clearing filters", 13, false, TEXT_MUTED);
+                hint.setAlignmentX(CENTER_ALIGNMENT);
+                emptyCard.add(ico); emptyCard.add(Box.createVerticalStrut(10));
+                emptyCard.add(msg); emptyCard.add(Box.createVerticalStrut(4)); emptyCard.add(hint);
+                emptyState.add(emptyCard);
+                // Span the full two-column grid width
+                grid.setLayout(new GridLayout(1, 1));
+                grid.add(emptyState);
+            } else {
+                grid.setLayout(new GridLayout(0, 2, 16, 16));
+                for (Service s : filtered) {
+                    ServiceProvider prov = db.getProviderById(s.getProviderId());
+                    grid.add(serviceCard(s, prov, customer, parentCL, parentPanel));
+                }
+            }
+
+            // Update count label
+            int count = filtered.size();
+            resultsLbl.setText(count == 0 ? "No results" :
+                    count == 1 ? "1 service found" : count + " services found");
+
+            grid.revalidate();
+            grid.repaint();
+        };
+
+        // ── Wire up all controls ─────────────────────────────────────────────
+
+        searchField.addKeyListener(new KeyAdapter() {
+            public void keyReleased(KeyEvent e) { refreshGrid.run(); }
+        });
+        catBox.addActionListener(e -> refreshGrid.run());
+        sortBox.addActionListener(e -> refreshGrid.run());
+
+        minSlider.addChangeListener(e -> {
+            int val = minSlider.getValue();
+            if (val > maxSlider.getValue()) {
+                maxSlider.setValue(val);
+                priceRange[1] = val;
+                maxLbl.setText("PKR " + val);
+            }
+            priceRange[0] = val;
+            minLbl.setText("PKR " + val);
+            refreshGrid.run();
+        });
+
+        maxSlider.addChangeListener(e -> {
+            int val = maxSlider.getValue();
+            if (val < minSlider.getValue()) {
+                minSlider.setValue(val);
+                priceRange[0] = val;
+                minLbl.setText("PKR " + val);
+            }
+            priceRange[1] = val;
+            maxLbl.setText("PKR " + val);
+            refreshGrid.run();
+        });
+
+        for (int i = 0; i < ratingChips.length; i++) {
+            final int idx = i;
+            ratingChips[i].addActionListener(e -> {
+                minRating[0] = idx;
+                for (int j = 0; j < ratingChips.length; j++)
+                    styleChip(ratingChips[j], j == idx);
+                refreshGrid.run();
+            });
+        }
+
+        clearBtn.addActionListener(e -> {
+            searchField.setText("");
+            catBox.setSelectedIndex(0);
+            sortBox.setSelectedIndex(0);
+            minSlider.setValue(PRICE_MIN);
+            maxSlider.setValue(PRICE_MAX);
+            priceRange[0] = PRICE_MIN; priceRange[1] = PRICE_MAX;
+            minLbl.setText("PKR " + PRICE_MIN);
+            maxLbl.setText("PKR " + PRICE_MAX);
+            minRating[0] = 0;
+            for (int j = 0; j < ratingChips.length; j++)
+                styleChip(ratingChips[j], j == 0);
+            refreshGrid.run();
+        });
+
+        refreshGrid.run();
+
+        panel.add(header, BorderLayout.NORTH);
+        panel.add(scroll, BorderLayout.CENTER);
+        return panel;
+    }
+
+    /** Styles a rating chip as active (filled blue) or inactive (outline). */
+    private void styleChip(JButton chip, boolean active) {
+        if (active) {
+            chip.setBackground(PRIMARY);
+            chip.setForeground(Color.WHITE);
+            chip.setBorder(BorderFactory.createCompoundBorder(
+                    new LineBorder(PRIMARY, 1, true),
+                    new EmptyBorder(3, 8, 3, 8)));
+        } else {
+            chip.setBackground(CARD_BG);
+            chip.setForeground(TEXT_MUTED);
+            chip.setBorder(BorderFactory.createCompoundBorder(
+                    new LineBorder(BORDER, 1, true),
+                    new EmptyBorder(3, 8, 3, 8)));
+        }
+    }
+
+    JPanel serviceCard(Service s, ServiceProvider prov, Customer customer, CardLayout cl, JPanel parentPanel) {
+        JPanel p = card(20);
+        p.setLayout(new BorderLayout(0, 10));
+        p.setPreferredSize(new Dimension(0, 200));
+
+        JPanel top = new JPanel(new BorderLayout());
+        top.setBackground(CARD_BG);
+
+        JLabel catBadge = new JLabel(" " + s.getCategory() + " ");
+        catBadge.setOpaque(true);
+        catBadge.setBackground(new Color(219, 234, 254));
+        catBadge.setForeground(new Color(30, 64, 175));
+        catBadge.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        catBadge.setBorder(new EmptyBorder(3, 8, 3, 8));
+
+        JLabel price = label(s.getFormattedPrice(), 18, true, PRIMARY);
+        top.add(catBadge, BorderLayout.WEST);
+        top.add(price, BorderLayout.EAST);
+
+        JLabel name = label(s.getName(), 16, true, TEXT_DARK);
+        JLabel desc = label("<html><p style='width:200px'>" + s.getDescription() + "</p></html>", 13, false, TEXT_MUTED);
+
+        JPanel info = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        info.setBackground(CARD_BG);
+        info.add(label("⏱ " + s.getFormattedDuration(), 12, false, TEXT_MUTED));
+        if (prov != null) info.add(label("👤 " + prov.getName(), 12, false, TEXT_MUTED));
+        if (prov != null && prov.getTotalRatings() > 0)
+            info.add(label("★ " + String.format("%.1f", prov.getRating()), 12, false, new Color(180, 117, 23)));
+
+        JButton bookBtn = primaryButton("Book Now");
+        bookBtn.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        bookBtn.addActionListener(e -> showBookingDialog(s, prov, customer, cl, parentPanel));
+
+        p.add(top, BorderLayout.NORTH);
+        JPanel mid = new JPanel(); mid.setLayout(new BoxLayout(mid, BoxLayout.Y_AXIS));
+        mid.setBackground(CARD_BG);
+        mid.add(name); mid.add(Box.createVerticalStrut(4)); mid.add(desc); mid.add(Box.createVerticalStrut(6)); mid.add(info);
+        p.add(mid, BorderLayout.CENTER);
+        p.add(bookBtn, BorderLayout.SOUTH);
+        return p;
+    }
+
+    void showBookingDialog(Service s, ServiceProvider prov, Customer customer, CardLayout cl, JPanel parentPanel) {
+        JDialog dialog = new JDialog(this, "Confirm Booking", true);
+        dialog.setSize(460, 440);
+        dialog.setLocationRelativeTo(this);
+        dialog.setLayout(new BorderLayout());
+
+        JPanel body = new JPanel(); body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
+        body.setBorder(new EmptyBorder(24, 28, 24, 28));
+        body.setBackground(CARD_BG);
+
+        body.add(label("Book: " + s.getName(), 18, true, TEXT_DARK));
+        body.add(Box.createVerticalStrut(4));
+        body.add(label("Provider: " + (prov != null ? prov.getName() : "N/A"), 13, false, TEXT_MUTED));
+        body.add(label("Price: " + s.getFormattedPrice(), 13, false, TEXT_MUTED));
+        body.add(label("Duration: " + s.getFormattedDuration(), 13, false, TEXT_MUTED));
+        body.add(Box.createVerticalStrut(20));
+
+        // Date/time pickers
+        body.add(label("Select Date:", 13, true, TEXT_DARK));
+        body.add(Box.createVerticalStrut(6));
+        String[] months = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
+        Integer[] days = new Integer[28]; for(int i=0;i<28;i++) days[i]=i+1;
+        Integer[] years = {2025, 2026, 2027};
+        Integer[] hours = {8,9,10,11,12,13,14,15,16,17,18};
+        Integer[] mins = {0, 15, 30, 45};
+
+        JComboBox<String> monthBox = new JComboBox<>(months);
+        JComboBox<Integer> dayBox = new JComboBox<>(days);
+        JComboBox<Integer> yearBox = new JComboBox<>(years);
+        JComboBox<Integer> hourBox = new JComboBox<>(hours);
+        JComboBox<Integer> minBox = new JComboBox<>(mins);
+        yearBox.setSelectedItem(2026);
+
+        JPanel dateRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        dateRow.setBackground(CARD_BG);
+        dateRow.add(dayBox); dateRow.add(monthBox); dateRow.add(yearBox);
+        dateRow.add(label("  Time:", 13, true, TEXT_DARK));
+        dateRow.add(hourBox); dateRow.add(label(":", 13, false, TEXT_DARK)); dateRow.add(minBox);
+        body.add(dateRow);
+        body.add(Box.createVerticalStrut(16));
+
+        body.add(label("Special Notes (optional):", 13, true, TEXT_DARK));
+        body.add(Box.createVerticalStrut(6));
+        JTextArea notesArea = new JTextArea(3, 20);
+        notesArea.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        notesArea.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(BORDER), new EmptyBorder(6, 8, 6, 8)));
+        notesArea.setLineWrap(true);
+        body.add(new JScrollPane(notesArea));
+        body.add(Box.createVerticalStrut(20));
+
+        JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        btnRow.setBackground(CARD_BG);
+        JButton cancel = outlineButton("Cancel", TEXT_MUTED);
+        JButton confirm = primaryButton("Confirm Booking");
+
+        confirm.addActionListener(e -> {
+            int day = (int) dayBox.getSelectedItem();
+            int month = monthBox.getSelectedIndex() + 1;
+            int year = (int) yearBox.getSelectedItem();
+            int hour = (int) hourBox.getSelectedItem();
+            int min = (int) minBox.getSelectedItem();
+            LocalDateTime dt = LocalDateTime.of(year, month, day, hour, min);
+
+            String bookId = "BK" + db.generateId();
+            Booking booking = new Booking(bookId, customer.getUserId(),
+                    prov != null ? prov.getUserId() : "", s.getServiceId(), dt,
+                    notesArea.getText().trim(),
+                    customer.getName(), prov != null ? prov.getName() : "", s.getName(), s.getPrice());
+
+            customer.addBooking(booking);
+            if (prov != null) prov.addBooking(booking);
+            db.addBooking(booking);
+            if (prov != null) nm.notifyNewRequest(booking);
+
+            dialog.dispose();
+            showMessage("✅ Booking confirmed!\nBooking ID: " + bookId +
+                    "\nService: " + s.getName() +
+                    "\nDate: " + booking.getFormattedDateTime() +
+                    "\nStatus: Pending (awaiting provider)", "Booking Successful", JOptionPane.INFORMATION_MESSAGE);
+        });
+
+        cancel.addActionListener(e -> dialog.dispose());
+        btnRow.add(cancel); btnRow.add(confirm);
+        body.add(btnRow);
+
+        dialog.add(body, BorderLayout.CENTER);
+        dialog.setVisible(true);
+    }
+
+    JPanel buildCustomerBookings(Customer customer) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(BG);
+        panel.setBorder(new EmptyBorder(24, 28, 24, 28));
+
+        JLabel title = label("My Bookings", 22, true, TEXT_DARK);
+
+        // Table
+        String[] cols = {"Booking ID", "Service", "Provider", "Date & Time", "Price", "Status", "Action"};
+        DefaultTableModel model = new DefaultTableModel(cols, 0) {
+            public boolean isCellEditable(int r, int c) { return c == 6; }
+        };
+
+        List<Booking> bookings = customer.getBookingHistory();
+        for (Booking b : bookings) {
+            model.addRow(new Object[]{
+                    b.getBookingId(), b.getServiceName(), b.getProviderName(),
+                    b.getFormattedDateTime(), b.getFormattedPrice(), b.getStatus(), "Rate"
+            });
+        }
+
+        JTable table = new JTable(model);
+        table.setRowHeight(38);
+        table.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        table.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
+        table.getTableHeader().setBackground(new Color(241, 245, 249));
+        table.setGridColor(BORDER);
+        table.setSelectionBackground(new Color(239, 246, 255));
+        table.setShowVerticalLines(false);
+
+        // Status renderer
+        table.getColumnModel().getColumn(5).setCellRenderer((tbl, val, sel, foc, row, col) -> {
+            return statusBadge(val.toString());
+        });
+
+        // Rate button
+        table.getColumnModel().getColumn(6).setCellRenderer(new DefaultTableCellRenderer() {
+            public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
+                Booking b = bookings.get(r);
+                if (b.getStatus().equals("Accepted") || b.getStatus().equals("Completed")) {
+                    JButton btn = outlineButton("Rate ★", WARNING);
+                    btn.setPreferredSize(new Dimension(80, 28));
+                    return btn;
+                }
+                return new JLabel("-");
+            }
+        });
+        table.addMouseListener(new MouseAdapter() {
+            public void mouseClicked(MouseEvent e) {
+                int row = table.rowAtPoint(e.getPoint());
+                int col = table.columnAtPoint(e.getPoint());
+                if (col == 6 && row >= 0) {
+                    Booking b = bookings.get(row);
+                    if (b.getStatus().equals("Accepted") || b.getStatus().equals("Completed")) {
+                        showRatingDialog(b);
+                    }
+                }
+            }
+        });
+
+        // Cancel booking button
+        JButton cancelBooking = outlineButton("Cancel Selected Booking", DANGER);
+        cancelBooking.addActionListener(e -> {
+            int row = table.getSelectedRow();
+            if (row < 0) { showMessage("Please select a booking first.", "No Selection", JOptionPane.WARNING_MESSAGE); return; }
+            Booking b = bookings.get(row);
+            if (!b.getStatus().equals("Pending")) {
+                showMessage("Only Pending bookings can be cancelled.", "Cannot Cancel", JOptionPane.WARNING_MESSAGE); return;
+            }
+            b.setStatus("Cancelled");
+            model.setValueAt("Cancelled", row, 5);
+            nm.notifyBookingCancelled(b);
+            db.save();
+        });
+
+        JPanel header = new JPanel(new BorderLayout());
+        header.setBackground(BG); header.setBorder(new EmptyBorder(0, 0, 12, 0));
+        header.add(title, BorderLayout.WEST);
+        header.add(cancelBooking, BorderLayout.EAST);
+
+        JScrollPane scroll = new JScrollPane(table);
+        scroll.setBorder(new LineBorder(BORDER, 1, true));
+
+        panel.add(header, BorderLayout.NORTH);
+        panel.add(scroll, BorderLayout.CENTER);
+        return panel;
+    }
+
+    void showRatingDialog(Booking b) {
+        String[] options = {"⭐ 1", "⭐⭐ 2", "⭐⭐⭐ 3", "⭐⭐⭐⭐ 4", "⭐⭐⭐⭐⭐ 5"};
+        int choice = JOptionPane.showOptionDialog(this,
+                "Rate your experience with " + b.getProviderName() + " for " + b.getServiceName(),
+                "Rate Service", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE,
+                null, options, options[4]);
+        if (choice >= 0) {
+            int stars = choice + 1;
+            b.setRating(stars);
+            b.setStatus("Completed");
+            ServiceProvider prov = db.getProviderById(b.getProviderId());
+            if (prov != null) prov.addRating(stars);
+            db.save();
+            showMessage("Thank you! You rated " + stars + " star(s).", "Rating Submitted", JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  PROVIDER DASHBOARD
+    // ═══════════════════════════════════════════════════════════════════════
+
+    JPanel buildProviderDashboard(ServiceProvider provider) {
+        JPanel root = new JPanel(new BorderLayout());
+
+        JPanel sidebar = buildSidebar(provider.getName(), "Service Provider",
+                new String[]{"\uD83C\uDFE0  Overview", "\uD83D\uDCCB  Pending Requests",
+                        "\uD83D\uDCCA  All Bookings", "\uD83D\uDD14  Notifications", "\uD83D\uDC64  My Profile"},
+                provider.getUserId());
+
+        CardLayout cl = new CardLayout();
+        JPanel content = new JPanel(cl);
+        content.setBackground(BG);
+
+        content.add(buildProviderOverview(provider), "OVERVIEW");
+        content.add(buildProviderRequests(provider, cl, content), "REQUESTS");
+        content.add(buildProviderAllBookings(provider), "ALL");
+        content.add(buildNotificationPanel(provider.getUserId()), "NOTIF");
+        content.add(buildProfile(provider), "PROFILE");
+
+        cl.show(content, "OVERVIEW");
+
+        JButton[] navBtns = (JButton[]) sidebar.getClientProperty("navBtns");
+        String[] screens = {"OVERVIEW", "REQUESTS", "ALL", "NOTIF", "PROFILE"};
+
+        for (int i = 0; i < navBtns.length - 1; i++) {
+            final String screen = screens[i];
+            final int idx2 = i;
+            navBtns[i].addActionListener(e -> {
+                if (screen.equals("REQUESTS")) {
+                    content.remove(content.getComponent(1));
+                    content.add(buildProviderRequests(provider, cl, content), "REQUESTS", 1);
+                }
+                if (screen.equals("OVERVIEW")) {
+                    content.remove(content.getComponent(0));
+                    content.add(buildProviderOverview(provider), "OVERVIEW", 0);
+                }
+                if (screen.equals("ALL")) {
+                    content.remove(content.getComponent(2));
+                    content.add(buildProviderAllBookings(provider), "ALL", 2);
+                }
+                if (screen.equals("NOTIF")) {
+                    content.remove(content.getComponent(3));
+                    content.add(buildNotificationPanel(provider.getUserId()), "NOTIF", 3);
+                    nm.markAllRead(provider.getUserId());
+                }
+                cl.show(content, screen);
+                highlightNav(navBtns, idx2);
+            });
+        }
+        navBtns[navBtns.length - 1].addActionListener(e -> {
+            currentUser = null;
+            cardLayout.show(mainPanel, "LOGIN");
+        });
+
+        root.add(sidebar, BorderLayout.WEST);
+        root.add(content, BorderLayout.CENTER);
+        return root;
+    }
+
+    JPanel buildProviderOverview(ServiceProvider provider) {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(BG);
+        panel.setBorder(new EmptyBorder(30, 30, 30, 30));
+
+        JLabel greeting = label("Welcome, " + provider.getName() + " 🔧", 24, true, TEXT_DARK);
+        JLabel sub = label("Specialty: " + provider.getSpecialty() + "  |  " + provider.getFormattedRating(), 14, false, TEXT_MUTED);
+        greeting.setAlignmentX(LEFT_ALIGNMENT);
+        sub.setAlignmentX(LEFT_ALIGNMENT);
+
+        JPanel statsRow = new JPanel(new GridLayout(1, 3, 16, 0));
+        statsRow.setBackground(BG); statsRow.setAlignmentX(LEFT_ALIGNMENT);
+        statsRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 120));
+
+        int total = provider.getAssignedBookings().size();
+        int pending = provider.getPendingBookings().size();
+        int accepted = (int) provider.getAssignedBookings().stream().filter(b -> b.getStatus().equals("Accepted")).count();
+
+        statsRow.add(statCard("Total Jobs", String.valueOf(total), new Color(239, 246, 255), PRIMARY));
+        statsRow.add(statCard("Pending", String.valueOf(pending), new Color(255, 251, 235), WARNING));
+        statsRow.add(statCard("Accepted", String.valueOf(accepted), new Color(240, 253, 244), SUCCESS));
+
+        JLabel pendTitle = label("Pending Requests", 17, true, TEXT_DARK);
+        pendTitle.setAlignmentX(LEFT_ALIGNMENT);
+
+        JPanel pendList = new JPanel();
+        pendList.setLayout(new BoxLayout(pendList, BoxLayout.Y_AXIS));
+        pendList.setBackground(BG); pendList.setAlignmentX(LEFT_ALIGNMENT);
+
+        List<Booking> pending2 = provider.getPendingBookings();
+        if (pending2.isEmpty()) {
+            pendList.add(label("No pending requests right now.", 14, false, TEXT_MUTED));
+        } else {
+            for (Booking b : pending2) {
+                pendList.add(bookingRow(b));
+                pendList.add(Box.createVerticalStrut(8));
+            }
+        }
+
+        panel.add(greeting); panel.add(Box.createVerticalStrut(4)); panel.add(sub);
+        panel.add(Box.createVerticalStrut(24)); panel.add(statsRow);
+        panel.add(Box.createVerticalStrut(28)); panel.add(pendTitle);
+        panel.add(Box.createVerticalStrut(12)); panel.add(pendList);
+        return panel;
+    }
+
+    JPanel buildProviderRequests(ServiceProvider provider, CardLayout parentCL, JPanel parentPanel) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(BG);
+        panel.setBorder(new EmptyBorder(24, 28, 24, 28));
+
+        JLabel title = label("Pending Requests", 22, true, TEXT_DARK);
+
+        JPanel list = new JPanel();
+        list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
+        list.setBackground(BG);
+
+        List<Booking> pending = provider.getPendingBookings();
+        if (pending.isEmpty()) {
+            list.add(Box.createVerticalStrut(40));
+            JLabel empty = label("✅  No pending requests at the moment.", 16, false, TEXT_MUTED);
+            empty.setAlignmentX(CENTER_ALIGNMENT);
+            list.add(empty);
+        }
+
+        for (Booking b : pending) {
+            JPanel row = card(16);
+            row.setLayout(new BorderLayout(12, 0));
+            row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 110));
+            row.setAlignmentX(LEFT_ALIGNMENT);
+
+            JPanel info = new JPanel(); info.setLayout(new BoxLayout(info, BoxLayout.Y_AXIS));
+            info.setBackground(CARD_BG);
+            info.add(label(b.getServiceName(), 15, true, TEXT_DARK));
+            info.add(Box.createVerticalStrut(3));
+            info.add(label("Customer: " + b.getCustomerName(), 13, false, TEXT_MUTED));
+            info.add(label("Scheduled: " + b.getFormattedDateTime(), 13, false, TEXT_MUTED));
+            info.add(label("Price: " + b.getFormattedPrice(), 13, false, TEXT_MUTED));
+            if (!b.getNotes().isEmpty())
+                info.add(label("Notes: " + b.getNotes(), 12, false, new Color(180,117,23)));
+
+            JPanel actions = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 0));
+            actions.setBackground(CARD_BG);
+            JButton accept = primaryButton("✓ Accept");
+            JButton reject = outlineButton("✗ Reject", DANGER);
+            accept.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            reject.setFont(new Font("Segoe UI", Font.BOLD, 12));
+
+            accept.addActionListener(e -> {
+                b.setStatus("Accepted");
+                db.save();
+                nm.notifyBookingAccepted(b);
+                showMessage("Booking accepted! Customer has been notified.", "Accepted", JOptionPane.INFORMATION_MESSAGE);
+                // Rebuild
+                parentPanel.remove(parentPanel.getComponent(1));
+                parentPanel.add(buildProviderRequests(provider, parentCL, parentPanel), "REQUESTS", 1);
+                parentCL.show(parentPanel, "REQUESTS");
+            });
+            reject.addActionListener(e -> {
+                b.setStatus("Rejected");
+                db.save();
+                nm.notifyBookingRejected(b);
+                parentPanel.remove(parentPanel.getComponent(1));
+                parentPanel.add(buildProviderRequests(provider, parentCL, parentPanel), "REQUESTS", 1);
+                parentCL.show(parentPanel, "REQUESTS");
+            });
+
+            actions.add(accept); actions.add(reject);
+            row.add(info, BorderLayout.CENTER);
+            row.add(actions, BorderLayout.EAST);
+            list.add(row); list.add(Box.createVerticalStrut(10));
+        }
+
+        JScrollPane scroll = new JScrollPane(list);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+
+        panel.add(title, BorderLayout.NORTH);
+        panel.add(scroll, BorderLayout.CENTER);
+        return panel;
+    }
+
+    JPanel buildProviderAllBookings(ServiceProvider provider) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(BG);
+        panel.setBorder(new EmptyBorder(24, 28, 24, 28));
+
+        JLabel title = label("All Bookings", 22, true, TEXT_DARK);
+
+        String[] cols = {"Booking ID", "Service", "Customer", "Scheduled", "Price", "Status"};
+        DefaultTableModel model = new DefaultTableModel(cols, 0) {
+            public boolean isCellEditable(int r, int c) { return false; }
+        };
+        for (Booking b : provider.getAssignedBookings()) {
+            model.addRow(new Object[]{
+                    b.getBookingId(), b.getServiceName(), b.getCustomerName(),
+                    b.getFormattedDateTime(), b.getFormattedPrice(), b.getStatus()
+            });
+        }
+
+        JTable table = new JTable(model);
+        table.setRowHeight(38);
+        table.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        table.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
+        table.getTableHeader().setBackground(new Color(241, 245, 249));
+        table.setGridColor(BORDER);
+        table.setShowVerticalLines(false);
+        table.getColumnModel().getColumn(5).setCellRenderer((t, v, s, f, r, c) -> statusBadge(v.toString()));
+
+        // Mark complete button
+        JButton markDone = primaryButton("Mark Selected as Completed");
+        markDone.addActionListener(e -> {
+            int row = table.getSelectedRow();
+            if (row < 0) { showMessage("Select a booking first.", "No Selection", JOptionPane.WARNING_MESSAGE); return; }
+            String status = (String) model.getValueAt(row, 5);
+            if (!status.equals("Accepted")) { showMessage("Only Accepted bookings can be marked complete.", "Error", JOptionPane.WARNING_MESSAGE); return; }
+            Booking completedB = provider.getAssignedBookings().get(row);
+            completedB.setStatus("Completed");
+            model.setValueAt("Completed", row, 5);
+            nm.notifyBookingCompleted(completedB);
+            db.save();
+        });
+
+        JPanel header = new JPanel(new BorderLayout());
+        header.setBackground(BG); header.setBorder(new EmptyBorder(0, 0, 12, 0));
+        header.add(title, BorderLayout.WEST); header.add(markDone, BorderLayout.EAST);
+
+        panel.add(header, BorderLayout.NORTH);
+        panel.add(new JScrollPane(table), BorderLayout.CENTER);
+        return panel;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  PROFILE
+    // ═══════════════════════════════════════════════════════════════════════
+
+    JPanel buildProfile(User user) {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBackground(BG);
+
+        JPanel form = card(32);
+        form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
+        form.setPreferredSize(new Dimension(500, 420));
+
+        // Avatar
+        JPanel avatarArea = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        avatarArea.setBackground(CARD_BG);
+        String initials = user.getName().length() >= 2 ?
+                user.getName().substring(0, 1).toUpperCase() + user.getName().split(" ")[user.getName().split(" ").length - 1].substring(0, 1).toUpperCase()
+                : user.getName().substring(0, 1).toUpperCase();
+
+        JPanel avatar = new JPanel() {
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(PRIMARY);
+                g2.fillOval(0, 0, 80, 80);
+                g2.setColor(Color.WHITE);
+                g2.setFont(new Font("Segoe UI", Font.BOLD, 28));
+                FontMetrics fm = g2.getFontMetrics();
+                int x = (80 - fm.stringWidth(initials)) / 2;
+                int y = (80 - fm.getHeight()) / 2 + fm.getAscent();
+                g2.drawString(initials, x, y);
+            }
+        };
+        avatar.setPreferredSize(new Dimension(80, 80));
+        avatar.setOpaque(false);
+        avatarArea.add(avatar);
+
+        JLabel nameLabel = label(user.getName(), 20, true, TEXT_DARK);
+        nameLabel.setAlignmentX(CENTER_ALIGNMENT);
+        JLabel roleLabel = label(user.getUserType(), 13, false, TEXT_MUTED);
+        roleLabel.setAlignmentX(CENTER_ALIGNMENT);
+
+        JLabel profileTitle = label("Edit Profile", 17, true, TEXT_DARK);
+        profileTitle.setAlignmentX(LEFT_ALIGNMENT);
+
+        JTextField nameF = styledField(user.getName(), 20); nameF.setText(user.getName());
+        JTextField phoneF = styledField(user.getPhone(), 20); phoneF.setText(user.getPhone());
+        JPasswordField passF = styledPasswordField(20);
+
+        for (JTextField f : new JTextField[]{nameF, phoneF, passF})
+            f.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+        for (JComponent c : new JComponent[]{nameF, phoneF, passF})
+            c.setAlignmentX(LEFT_ALIGNMENT);
+
+        JButton saveBtn = primaryButton("Save Changes");
+        saveBtn.setAlignmentX(LEFT_ALIGNMENT);
+        saveBtn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
+
+        saveBtn.addActionListener(e -> {
+            if (!nameF.getText().trim().isEmpty()) user.setName(nameF.getText().trim());
+            if (!phoneF.getText().trim().isEmpty()) user.setPhone(phoneF.getText().trim());
+            String pass = new String(passF.getPassword()).trim();
+            if (!pass.isEmpty()) user.setPassword(pass);
+            showMessage("Profile updated successfully!", "Saved", JOptionPane.INFORMATION_MESSAGE);
+        });
+
+        form.add(avatarArea);
+        form.add(nameLabel); form.add(roleLabel);
+        form.add(Box.createVerticalStrut(20));
+        form.add(new JSeparator()); form.add(Box.createVerticalStrut(16));
+        form.add(profileTitle); form.add(Box.createVerticalStrut(14));
+        form.add(label("Name", 13, true, TEXT_DARK)); form.add(Box.createVerticalStrut(5)); form.add(nameF);
+        form.add(Box.createVerticalStrut(12));
+        form.add(label("Email (read-only)", 13, true, TEXT_MUTED));
+        JLabel emailLbl = label(user.getEmail(), 13, false, TEXT_MUTED); emailLbl.setAlignmentX(LEFT_ALIGNMENT);
+        form.add(Box.createVerticalStrut(3)); form.add(emailLbl);
+        form.add(Box.createVerticalStrut(12));
+        form.add(label("Phone", 13, true, TEXT_DARK)); form.add(Box.createVerticalStrut(5)); form.add(phoneF);
+        form.add(Box.createVerticalStrut(12));
+        form.add(label("New Password (leave blank to keep)", 13, true, TEXT_DARK)); form.add(Box.createVerticalStrut(5)); form.add(passF);
+        form.add(Box.createVerticalStrut(20));
+        form.add(saveBtn);
+
+        panel.add(form);
+        return panel;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  SIDEBAR
+    // ═══════════════════════════════════════════════════════════════════════
+
+    JPanel buildNotificationPanel(String userId) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(BG);
+        panel.setBorder(new EmptyBorder(24, 28, 24, 28));
+
+        // Header row
+        JPanel header = new JPanel(new BorderLayout());
+        header.setBackground(BG);
+        header.setBorder(new EmptyBorder(0, 0, 16, 0));
+        JLabel title = label("Notifications", 22, true, TEXT_DARK);
+        JButton clearBtn = outlineButton("Clear All", TEXT_MUTED);
+        clearBtn.addActionListener(e -> {
+            nm.clearAll(userId);
+            panel.removeAll();
+            panel.add(buildNotificationPanel(userId), BorderLayout.CENTER);
+            panel.revalidate(); panel.repaint();
+        });
+        header.add(title, BorderLayout.WEST);
+        header.add(clearBtn, BorderLayout.EAST);
+
+        // Notification list
+        JPanel list = new JPanel();
+        list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
+        list.setBackground(BG);
+
+        java.util.List<NotificationManager.Notification> notifs = nm.getFor(userId);
+
+        if (notifs.isEmpty()) {
+            list.add(Box.createVerticalStrut(60));
+            JLabel icon = label("\uD83D\uDD14", 40, false, TEXT_MUTED);
+            icon.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 40));
+            icon.setAlignmentX(CENTER_ALIGNMENT);
+            JLabel msg  = label("No notifications yet", 15, true, TEXT_DARK);
+            JLabel hint = label("You will see alerts here when bookings are accepted, rejected, or updated.", 13, false, TEXT_MUTED);
+            msg.setAlignmentX(CENTER_ALIGNMENT);
+            hint.setAlignmentX(CENTER_ALIGNMENT);
+            list.add(icon);
+            list.add(Box.createVerticalStrut(12));
+            list.add(msg);
+            list.add(Box.createVerticalStrut(4));
+            list.add(hint);
+        }
+
+        for (NotificationManager.Notification n : notifs) {
+            JPanel row = new JPanel(new BorderLayout(12, 0));
+            row.setBackground(n.read ? CARD_BG : new Color(239, 246, 255));
+            row.setBorder(BorderFactory.createCompoundBorder(
+                    new LineBorder(BORDER, 1, true),
+                    new EmptyBorder(12, 16, 12, 16)));
+            row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 82));
+            row.setAlignmentX(LEFT_ALIGNMENT);
+
+            // Icon
+            JLabel iconLbl = label(n.getIcon(), 22, false, TEXT_DARK);
+            iconLbl.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 22));
+            iconLbl.setVerticalAlignment(SwingConstants.CENTER);
+
+            // Text
+            JPanel info = new JPanel();
+            info.setLayout(new BoxLayout(info, BoxLayout.Y_AXIS));
+            info.setBackground(n.read ? CARD_BG : new Color(239, 246, 255));
+            JLabel titleLbl = label(n.title, 14, true, TEXT_DARK);
+            JLabel bodyLbl  = label("<html><p style=\'width:420px\'>" + n.body + "</p></html>", 12, false, TEXT_MUTED);
+            info.add(titleLbl);
+            info.add(Box.createVerticalStrut(2));
+            info.add(bodyLbl);
+
+            // Time
+            JLabel timeLbl = label(n.getFormattedTime(), 11, false, TEXT_MUTED);
+            timeLbl.setVerticalAlignment(SwingConstants.TOP);
+
+            // Unread dot
+            if (!n.read) {
+                JPanel dot = new JPanel() {
+                    protected void paintComponent(Graphics g) {
+                        Graphics2D g2 = (Graphics2D) g;
+                        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                        g2.setColor(PRIMARY);
+                        g2.fillOval(0, 4, 8, 8);
+                    }
+                };
+                dot.setOpaque(false);
+                dot.setPreferredSize(new Dimension(12, 20));
+                row.add(dot, BorderLayout.WEST);
+            } else {
+                row.add(iconLbl, BorderLayout.WEST);
+            }
+            row.add(info, BorderLayout.CENTER);
+            row.add(timeLbl, BorderLayout.EAST);
+
+            list.add(row);
+            list.add(Box.createVerticalStrut(6));
+        }
+
+        // Mark all read when panel opens
+        nm.markAllRead(userId);
+
+        JScrollPane scroll = new JScrollPane(list);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
+        scroll.setBackground(BG);
+        scroll.getViewport().setBackground(BG);
+
+        panel.add(header, BorderLayout.NORTH);
+        panel.add(scroll, BorderLayout.CENTER);
+        return panel;
+    }
+
+    // ── Badge wrapper — overlays a red circle on a nav button ────────────────
+    JPanel badgeNavButton(JButton btn, String userId, String notifKey) {
+        JPanel wrapper = new JPanel(null);  // absolute layout
+        wrapper.setBackground(SIDEBAR_BG);
+        wrapper.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
+        wrapper.setAlignmentX(LEFT_ALIGNMENT);
+
+        btn.setBounds(0, 0, 220, 44);
+        wrapper.add(btn);
+
+        // Badge label — drawn as a red pill
+        JLabel badge = new JLabel("", SwingConstants.CENTER) {
+            protected void paintComponent(Graphics g) {
+                if (getText().isEmpty()) return;
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(BADGE_RED);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), getHeight(), getHeight());
+                g2.setColor(Color.WHITE);
+                g2.setFont(new Font("Segoe UI", Font.BOLD, 10));
+                FontMetrics fm = g2.getFontMetrics();
+                String t = getText();
+                g2.drawString(t, (getWidth()-fm.stringWidth(t))/2, (getHeight()-fm.getHeight())/2+fm.getAscent());
+            }
+        };
+        badge.setOpaque(false);
+        int badgeW = 20, badgeH = 16;
+        badge.setBounds(186, 4, badgeW, badgeH);
+        wrapper.add(badge);
+        badge.setVisible(false);
+
+        // Register listener so badge auto-updates
+        NotificationManager.BadgeListener bl = (uid, count) -> {
+            if (!uid.equals(userId)) return;
+            SwingUtilities.invokeLater(() -> {
+                if (count > 0) {
+                    badge.setText(count > 99 ? "99+" : String.valueOf(count));
+                    badge.setVisible(true);
+                } else {
+                    badge.setVisible(false);
+                }
+                wrapper.repaint();
+            });
+        };
+        nm.addBadgeListener(bl);
+        // Seed with current count
+        int cur = nm.getUnreadCount(userId);
+        if (cur > 0) { badge.setText(cur > 99 ? "99+" : String.valueOf(cur)); badge.setVisible(true); }
+
+        wrapper.putClientProperty("badge", badge);
+        return wrapper;
+    }
+
+    JPanel buildSidebar(String name, String role, String[] items) {
+        return buildSidebar(name, role, items, null);
+    }
+
+    JPanel buildSidebar(String name, String role, String[] items, String userId) {
+        JPanel sidebar = new JPanel();
+        sidebar.setLayout(new BoxLayout(sidebar, BoxLayout.Y_AXIS));
+        sidebar.setBackground(SIDEBAR_BG);
+        sidebar.setPreferredSize(new Dimension(220, 0));
+        sidebar.setBorder(new EmptyBorder(24, 0, 24, 0));
+
+        // Logo
+        JLabel logo = label("\uD83C\uDFE0 HomeServe", 18, true, Color.WHITE);
+        logo.setBorder(new EmptyBorder(0, 20, 0, 0));
+        logo.setAlignmentX(LEFT_ALIGNMENT);
+        sidebar.add(logo);
+        sidebar.add(Box.createVerticalStrut(24));
+
+        // User info box
+        JPanel userBox = new JPanel(new BorderLayout(10, 0));
+        userBox.setBackground(new Color(30, 41, 59));
+        userBox.setBorder(new EmptyBorder(12, 14, 12, 14));
+        userBox.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
+        userBox.setAlignmentX(LEFT_ALIGNMENT);
+
+        JPanel initCircle = new JPanel() {
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(PRIMARY);
+                g2.fillOval(0, 0, 36, 36);
+                g2.setColor(Color.WHITE);
+                g2.setFont(new Font("Segoe UI", Font.BOLD, 14));
+                String init = name.substring(0, 1).toUpperCase();
+                FontMetrics fm = g2.getFontMetrics();
+                g2.drawString(init, (36 - fm.stringWidth(init)) / 2, (36 - fm.getHeight()) / 2 + fm.getAscent());
+            }
+        };
+        initCircle.setPreferredSize(new Dimension(36, 36));
+        initCircle.setOpaque(false);
+
+        JPanel nameBox = new JPanel(); nameBox.setLayout(new BoxLayout(nameBox, BoxLayout.Y_AXIS));
+        nameBox.setBackground(new Color(30, 41, 59));
+        String displayName = name.length() > 14 ? name.substring(0, 13) + "\u2026" : name;
+        nameBox.add(label(displayName, 13, true, Color.WHITE));
+        nameBox.add(label(role, 11, false, new Color(148, 163, 184)));
+
+        userBox.add(initCircle, BorderLayout.WEST);
+        userBox.add(nameBox, BorderLayout.CENTER);
+        sidebar.add(userBox);
+        sidebar.add(Box.createVerticalStrut(20));
+
+        JLabel navLbl = label("NAVIGATION", 10, true, new Color(71, 85, 105));
+        navLbl.setBorder(new EmptyBorder(0, 20, 8, 0));
+        navLbl.setAlignmentX(LEFT_ALIGNMENT);
+        sidebar.add(navLbl);
+
+        // Nav buttons — the bell (Notifications) button gets a badge
+        JButton[] navBtns = new JButton[items.length + 1];
+        for (int i = 0; i < items.length; i++) {
+            JButton btn = navButton(items[i], i == 0);
+            navBtns[i] = btn;
+            // Notifications nav item gets a live badge
+            if (userId != null && items[i].contains("Notifications")) {
+                sidebar.add(badgeNavButton(btn, userId, "notif"));
+            } else {
+                sidebar.add(btn);
+            }
+            sidebar.add(Box.createVerticalStrut(2));
+        }
+
+        sidebar.add(Box.createVerticalGlue());
+        JButton logoutBtn = navButton("\uD83D\uDEAA  Logout", false);
+        logoutBtn.setForeground(new Color(248, 113, 113));
+        navBtns[items.length] = logoutBtn;
+        sidebar.add(logoutBtn);
+
+        sidebar.putClientProperty("navBtns", navBtns);
+        return sidebar;
+    }
+
+    JButton navButton(String text, boolean active) {
+        JButton btn = new JButton(text);
+        btn.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        btn.setForeground(active ? Color.WHITE : new Color(148, 163, 184));
+        btn.setBackground(active ? SIDEBAR_ACTIVE : SIDEBAR_BG);
+        btn.setBorder(new EmptyBorder(10, 20, 10, 20));
+        btn.setFocusPainted(false);
+        btn.setHorizontalAlignment(SwingConstants.LEFT);
+        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
+        btn.setAlignmentX(LEFT_ALIGNMENT);
+        btn.addMouseListener(new MouseAdapter() {
+            public void mouseEntered(MouseEvent e) {
+                if (btn.getBackground() != SIDEBAR_ACTIVE) {
+                    btn.setBackground(new Color(30, 41, 59));
+                    btn.setForeground(Color.WHITE);
+                }
+            }
+            public void mouseExited(MouseEvent e) {
+                if (btn.getBackground() != SIDEBAR_ACTIVE) {
+                    btn.setBackground(SIDEBAR_BG);
+                    btn.setForeground(new Color(148, 163, 184));
+                }
+            }
+        });
+        return btn;
+    }
+
+    void highlightNav(JButton[] btns, int activeIdx) {
+        for (int i = 0; i < btns.length - 1; i++) {
+            btns[i].setBackground(i == activeIdx ? SIDEBAR_ACTIVE : SIDEBAR_BG);
+            btns[i].setForeground(i == activeIdx ? Color.WHITE : new Color(148, 163, 184));
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  SMALL HELPERS
+    // ═══════════════════════════════════════════════════════════════════════
+
+    JPanel statCard(String lbl, String val, Color bg, Color textColor) {
+        JPanel p = new JPanel();
+        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
+        p.setBackground(bg);
+        p.setBorder(new EmptyBorder(16, 20, 16, 20));
+
+        JLabel valLbl = label(val, 32, true, textColor); valLbl.setAlignmentX(LEFT_ALIGNMENT);
+        JLabel lblLbl = label(lbl, 13, false, TEXT_MUTED); lblLbl.setAlignmentX(LEFT_ALIGNMENT);
+        p.add(valLbl); p.add(Box.createVerticalStrut(4)); p.add(lblLbl);
+        return p;
+    }
+
+    JPanel bookingRow(Booking b) {
+        JPanel row = card(14);
+        row.setLayout(new BorderLayout(10, 0));
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 72));
+        row.setAlignmentX(LEFT_ALIGNMENT);
+
+        JPanel info = new JPanel(); info.setLayout(new BoxLayout(info, BoxLayout.Y_AXIS));
+        info.setBackground(CARD_BG);
+        info.add(label(b.getServiceName(), 14, true, TEXT_DARK));
+        info.add(label(b.getFormattedDateTime() + "  ·  " + b.getFormattedPrice(), 12, false, TEXT_MUTED));
+
+        row.add(info, BorderLayout.CENTER);
+        row.add(statusBadge(b.getStatus()), BorderLayout.EAST);
+        return row;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  MAIN
+    // ═══════════════════════════════════════════════════════════════════════
+
+    public static void main(String[] args) {
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception ignored) {}
+
+        // Show splash screen — it opens MainGUI automatically when done
+        SwingUtilities.invokeLater(SplashScreen::new);
+    }
+}
