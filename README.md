@@ -178,9 +178,7 @@ Data Storage: We did not use any external database. Instead we used file-based s
 through our DataPersistence class which saves and loads data locally on 
 your machine.
 
-Version Control: We used Git and GitHub to manage our code throughout the project. The full 
-source code is available at:
-https://github.com/Sarim-07/Home-Services-Application
+Version Control: We used Git and GitHub to manage our code throughout the project. 
 
 UML Diagrams: After completing the code we created UML class diagrams using IntelliJ for every class in the system to document the structure of the project and show how all the 
 classes connect to each other.
