@@ -100,4 +100,29 @@ Apart from solving a real-life problem, this project is also a way to practice t
                               and Service objects
                               
 
-       
+                                               ## How to Run
+
+You need two things. Java JDK 17 or above and IntelliJ IDEA.
+
+1. Clone the repo or just download it as a zip and open it in IntelliJ.
+2. Once it loads go to src then homeservicessystem then find MainGUI.java
+3. Right click it and hit Run.
+
+The app will start with a splash screen and then bring you to the login page. From there you can log in as a customer, service provider or admin. You can also register a new account if you want.
+
+If you want to test things quickly here are some accounts that are already in the system.
+
+#ADMIN
+Email: admin@home.com  Password: admin123
+Email: support@home.com  Password: support123
+
+#CUSTOMERS
+Email: ahmed@gmail.com  Password: 1234
+Email: sara@gmail.com  Password: 1234
+Email: bilal@gmail.com  Password: 1234
+
+#SERVICE PROVIDERS
+Email: usman@pro.com  Password: 1234
+Email: ali@pro.com  Password: 1234
+Email: clean@pro.com  Password: 1234
+Email: coolair@pro.com  Password: 1234
