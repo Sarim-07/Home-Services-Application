@@ -126,3 +126,64 @@ Email: usman@pro.com  Password: 1234
 Email: ali@pro.com  Password: 1234
 Email: clean@pro.com  Password: 1234
 Email: coolair@pro.com  Password: 1234
+
+           # Code Explanation
+
+**How the App Starts**
+
+When you run the app, SplashScreen is the first thing that shows up. It shows the name of our Project: “Home Services Management System”. It also mentions our names and our CMS IDs along with the name of our instructor. This splashscreen lasts for about 3-5 seconds.
+  After that MainGUI takes over. MainGUI is basically the backbone of the whole application. It handles everything from login and registration to building the right dashboard for whoever logged in.
+
+
+
+**How Login Works**
+
+Login uses polymorphism. The login() method in DataStore returns a User object. But User is an abstract class so it can never be just a "User". The actual object coming back is always either a Customer, ServiceProvider or Admin. MainGUI checks which one it is and then shows that person their correct dashboard. This is polymorphism in action.
+
+
+**How Data is Managed**
+
+Everything goes through DataStore. It is a Singleton which means only one instance of it exists throughout the entire app. No matter which screen you are on, everyone is reading from and writing to the same DataStore. It keeps all the customers, providers, bookings and services in memory.
+DataPersistence works alongside DataStore. Every time something changes, it saves automatically. When you open the app again it loads everything back so nothing is lost.
+
+**How the Customer Side Works**
+
+After logging in as a customer you land on your dashboard. From there you can browse 8 services across 4 categories. When you book something you pick a date and time. That booking gets stored in DataStore and also saved to disk through DataPersistence. You can track your bookings and see if they are Pending, Accepted, Rejected or Completed.
+
+**How the Service Provider Side Works**
+
+The provider logs in and sees their own dashboard. All incoming booking requests show up there. They can accept or reject each one. The moment they do that, the customer gets a notification.
+
+**How Notifications Work**
+
+NotificationManager handles all notifications. It uses the Observer Pattern with a BadgeListener interface. This means whenever something changes, like a booking getting accepted, the notification badge on the UI updates instantly in real time. You do not have to refresh anything. The UI is always listening.
+
+**How the Admin Side Works**
+
+The Admin dashboard opens as a completely separate window. From there the admin can see every single user and every booking in the system. They can delete customer accounts, suspend or unsuspend providers and cancel any booking. There are also two charts. One shows bookings per category and the other shows revenue per category.
+
+
+   # Tools and Technologies Used
+
+Language: We built the entire application in Java. No other language was used anywhere 
+in the project.
+
+IDE: We used IntelliJ IDEA for writing, running and debugging the code.
+
+UI Framework: For the graphical interface we used Java Swing and Java AWT. Both of these 
+come built into Java so we did not need to install anything extra. Swing handled the components like buttons, panels, tables and cards. AWT handled the layouts, colors and event listeners.
+
+
+Data Storage: We did not use any external database. Instead we used file-based storage 
+through our DataPersistence class which saves and loads data locally on 
+your machine.
+
+Version Control: We used Git and GitHub to manage our code throughout the project. The full 
+source code is available at:
+https://github.com/Sarim-07/Home-Services-Application
+
+UML Diagrams: After completing the code we created UML class diagrams using IntelliJ for every class in the system to document the structure of the project and show how all the 
+classes connect to each other.
+
+
+
