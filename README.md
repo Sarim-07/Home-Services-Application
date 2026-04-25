@@ -102,7 +102,7 @@ Apart from solving a real-life problem, this project is also a way to practice t
 
                                                ## How to Run
 
-You need two things. Java JDK 17 or above and IntelliJ IDEA.
+You need two things. Java JDK 17 and IntelliJ IDEA.
 
 1. Clone the repo or just download it as a zip and open it in IntelliJ.
 2. Once it loads go to src then homeservicessystem then find MainGUI.java
